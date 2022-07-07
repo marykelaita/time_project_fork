@@ -1,0 +1,16 @@
+---
+title: "first-analysis"
+author: "EmaanMohsin"
+date: "2022-07-07"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Introduction
+
+```{r}
+#test
+
+```
+
