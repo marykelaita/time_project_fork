@@ -8,4 +8,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+Emaan Mohsin & Genevieve Housman
+
+# Workflow and analysis of gene expression variation during the course of human iPSC-derived chondrogenic differentiation.

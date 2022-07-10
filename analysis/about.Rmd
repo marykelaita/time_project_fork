@@ -7,4 +7,4 @@ editor_options:
   chunk_output_type: console
 ---
 
-Describe your project.
+We (Emaan Mohsin & Genevieve Housman) are researchers in the Section of Genetic Medicine at the University of Chicago. Here, we examine gene expression variation during the course of human iPSC-derived chondrogenic differentiation.
