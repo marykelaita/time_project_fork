@@ -1,0 +1,62 @@
+---
+title: "Initial_Data_Processing"
+output: html_document
+date: '2022-10-22'
+---
+
+```{r setup, include=FALSE}
+
+dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
+dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
+
+library(dplyr)
+library(Seurat)
+
+time_data_initial <- '/project2/gilad/emaan/project/time_course/outs/multi/count/raw_feature_bc_matrix'
+list.files(time_data_initial) 
+data <- Read10X(data.dir = time_data_initial)
+seurat_object = CreateSeuratObject(counts = data$`Gene Expression`)
+seurat_object_multi = CreateSeuratObject(counts = data$`Multiplexing Capture`)
+
+confidence_table <- read.csv("/project2/gilad/emaan/project/time_course/outs/multi/multiplexing_analysis/assignment_confidence_table.csv")
+
+confidence_table[, 2:7][confidence_table[, 2:7] >= 0.6] <- 1
+confidence_table[, 2:7][confidence_table[, 2:7] < 0.6] <- 0
+
+confidence_table2 <- confidence_table[, c(2,3,4,5,6,7,9)]
+
+vector <- as.numeric(as.matrix(confidence_table2))
+```
+
+```{r}
+any(rowSums(confidence_table[,2:7])>1)
+sum(rowSums(confidence_table[,2:7])>1)
+```
+
+```{r}
+seurat_object$condition <- ""
+
+cell.idents <- list()
+cmo.names <- names(confidence_table[,2:7])
+for (cmo in cmo.names) {
+  cell.idents[[cmo]] <- confidence_table$Barcode[which(confidence_table[[cmo]]==1)]
+  print(length(cell.idents[[cmo]]))
+}
+
+```
+```{r}
+for (cmo in cmo.names) {
+  w <- which(colnames(seurat_object) %in% cell.idents[[cmo]])
+  seurat_object$condition[w] <- cmo
+}
+```
+
+```{r}
+table(seurat_object$condition)
+```
+
+```{r}
+cells.keep <- WhichCells(seurat_object, expression = condition != "")
+length(cells.keep)
+```
+
