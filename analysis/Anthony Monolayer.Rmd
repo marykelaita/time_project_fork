@@ -1,0 +1,117 @@
+---
+title: "Anthony Monolayer"
+output: html_document
+date: '2023-05-30'
+---
+
+```{r}
+library(data.table)
+library(Matrix)
+library(Seurat)
+library(readr)
+library(stringr)
+library(plyr)
+library(dplyr)
+
+#proj_dir <- "/project2/gilad/anthonyhung/Projects/OAStrain_project/YriMultiplex"
+#ANT1_dir <- paste0(proj_dir, "YG-AH-2S-ANT-1_S1_L008/")
+#ANT2_dir <- paste0(proj_dir, "YG-AH-2S-ANT-2_S2_L008/")
+
+
+#demuxlet1 <- fread(paste0("/project2/gilad/anthonyhung/Projects/OAStrain_project/YriMultiplex/YG-AH-2S-ANT-1_S1_L008/", "demuxlet.best", sep = ""))
+#count_data1 <- readMM(paste0("/project2/gilad/anthonyhung/Projects/OAStrain_project/YriMultiplex/YG-AH-2S-ANT-1_S1_L008/", "Gene/filtered/matrix.mtx"))
+#genes1 <- read_tsv(paste0(ANT1_dir, "Gene/filtered/genes.tsv"), col_names = F)
+
+
+#Anthony_data<- subset(log_normalized_ANT12_integrated, subset = nFeature_RNA > 200 & #nFeature_RNA < 6000 & percent.mt < 5)
+
+#Anthony_data <- subset(Anthony_data, subset = labels == 'NA18855_Unstrain' | labels == 'NA18856_Unstrain' | labels == 'NA19160_Unstrain')
+
+#Creating a list of the Seurat objects
+#individual_list <- list(seurat_chondro)
+
+
+# normalize and identify variable features for each dataset independently
+#individual_list <- lapply(X = individual_list, FUN = function(x) {
+    #x <- NormalizeData(x)
+    #x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+#})
+
+#common_genes <- intersect(rownames(Anthony_data), rownames(seurat_chondro))
+
+#Anthony_data_1 <- subset(seurat_obj1, features = common_genes)
+#seurat_chondro_1 <- subset(seurat_obj2, features = common_genes)
+
+#Select features that are repeatedly variable across data sets for integration
+#features <- SelectIntegrationFeatures(object.list = individual_list)
+#cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#seurat_chondro_normalize <- NormalizeData(object = seurat_chondro, normalization.method = "LogNormalize", 
+    #scale.factor = 10000)
+
+#list<- list(Anthony_data,cells.combined)
+
+#combined<- FindIntegrationAnchors(
+  #object.list = list,
+  #assay = NULL,
+  #reference = NULL,
+  #anchor.features = 2000,
+  #scale = TRUE,
+  #normalization.method = c("LogNormalize"),
+  #sct.clip.range = NULL,
+  #reduction = c("cca", "rpca", "rlsi"),
+  #l2.norm = TRUE,
+  #dims = 1:30,
+  #k.anchor = 5,
+  #k.filter = 200,
+  #k.score = 30,
+  #max.features = 200,
+  #nn.method = "annoy",
+  #n.trees = 50,
+ # eps = 0,
+  #verbose = TRUE
+#)
+
+#anchors <- FindIntegrationAnchors(object.list = list)
+#integrated <- IntegrateData(anchorset = anchors)
+
+
+#Creating the integrated data set
+#cells.combined <- IntegrateData(anchorset = cell.anchors)
+#DefaultAssay(cells.combined) <- "integrated"
+
+#integrated1<- ScaleData(integrated, verbose = FALSE)
+#integrated1 <- RunPCA(integrated1, npcs = 30, verbose = FALSE)
+
+#Trying to find how many PCs to include
+#ElbowPlot(integrated1)
+#DimHeatmap(integrated1, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+#integrated1<- RunUMAP(integrated1, reduction = "pca", dims = 1:30)
+#integrated1 <- FindNeighbors(integrated1, reduction = "pca", dims = 1:30)
+#integrated1<- FindClusters(integrated1, resolution = 0.3)
+
+#save(cells.combined, file = "cells.combined.kenneth.chondro.RData")
+
+# Visualization
+#p1 <- DimPlot(integrated1, reduction = "umap", split.by = "condition")
+
+#p2 <- DimPlot(cells.combined, reduction = "umap", group.by = "Cell.Type")
+
+#p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+#p1 + p2
+
+#DimPlot(integrated1, reduction = "umap", label = TRUE, repel = TRUE )
+
+
+# find all markers distinguishing cluster 5 from clusters 0 and 3
+#cluster5.markers <- FindMarkers(integrated1, ident.1 = c(1,3,8), ident.2 = c(6), min.pct = #0.25)
+#head(cluster5.markers, n = 50)
+
+
+
+```
+
+
+

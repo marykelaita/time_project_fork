@@ -1,0 +1,584 @@
+---
+title: "Data Processing YRI+human data"
+output: html_document
+date: '2023-07-06'
+---
+
+Batch 2 Data Processing Part 1
+```{r}
+
+dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
+dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
+
+library(dplyr)
+library(Seurat)
+
+#Creating a Seurat object
+GH_data_batch2 <- '/project2/gilad/emaan/ghousman_data/human_chimp_chondro_time_batch2_h_06/outs/multi/count/raw_feature_bc_matrix'
+
+list.files(GH_data_batch2) 
+data_batch2 <- Read10X(data.dir = GH_data_batch2)
+
+#This Seurat object only has the gene expression data
+GH_seurat_batch_2 = CreateSeuratObject(counts = data_batch2$`Gene Expression`)
+
+confidence_table_batch_2 <- read.csv("/project2/gilad/emaan/ghousman_data/human_chimp_chondro_time_batch2_h_06/outs/multi/multiplexing_analysis/assignment_confidence_table.csv")
+```
+
+Batch 2 Data Processing Part 2
+Adding confidence values into the meta data. Cells with a probability less than 0.7 are removed.
+```{r}
+GH_seurat_batch_2$condition <- ""
+
+cell.idents <- list()
+cmo.names <- names(confidence_table_batch_2[,2:7])
+for (cmo in cmo.names) {
+  cell.idents[[cmo]] <- confidence_table_batch_2$Barcode[which(confidence_table_batch_2[[cmo]]>0.7)]
+  print(length(cell.idents[[cmo]]))
+}
+
+for (cmo in cmo.names) {
+  w <- which(colnames(GH_seurat_batch_2) %in% cell.idents[[cmo]])
+GH_seurat_batch_2$condition[w] <- cmo
+}
+
+
+#Changing names from CMO to condition
+GH_seurat_batch_2@meta.data$condition[which(GH_seurat_batch_2@meta.data$condition=="CMO301")] <- "H5_D0"
+GH_seurat_batch_2@meta.data$condition[which(GH_seurat_batch_2@meta.data$condition=="CMO303")] <- "H5_D14c"
+GH_seurat_batch_2@meta.data$condition[which(GH_seurat_batch_2@meta.data$condition=="CMO304")] <- "H3_D7m"
+GH_seurat_batch_2@meta.data$condition[which(GH_seurat_batch_2@meta.data$condition=="CMO306")] <- "H3_D14c"
+GH_seurat_batch2_df= GH_seurat_batch_2@meta.data
+
+GH_seurat_batch2_clean <- subset(GH_seurat_batch_2, subset = condition != "")
+GH_seurat_batch2_clean_df <- GH_seurat_batch2_clean@meta.data
+
+#Checking to make sure that we did not lose any cells in the process. The number of cells assigned to each CMO here should be the same as lines #30-35
+value_counts <- table(GH_seurat_batch2_clean_df$condition)
+print(value_counts)
+
+save(GH_seurat_batch2_clean, file = "GH_seurat_batch2_clean.RData")
+
+```
+
+Batch 1 Data Processing Part 1
+```{r}
+
+dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
+dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
+
+library(dplyr)
+library(Seurat)
+
+#Creating a Seurat object
+GH_data_batch1 <- '/project2/gilad/emaan/ghousman_data/human_chimp_chondro_time_batch1_h_06/outs/multi/count/raw_feature_bc_matrix'
+
+list.files(GH_data_batch1) 
+data_batch1 <- Read10X(data.dir = GH_data_batch1)
+
+#This Seurat object only has the gene expression data
+GH_seurat_batch_1 = CreateSeuratObject(counts = data_batch1$`Gene Expression`)
+
+confidence_table_batch_1 <- read.csv("/project2/gilad/emaan/ghousman_data/human_chimp_chondro_time_batch1_h_06/outs/multi/multiplexing_analysis/assignment_confidence_table.csv")
+```
+
+Batch 1 Data Processing Part 2
+Adding confidence values into the meta data. Cells with a probability less than 0.7 are removed.
+```{r}
+GH_seurat_batch_1$condition <- ""
+
+cell.idents <- list()
+cmo.names <- names(confidence_table_batch_1[,2:13])
+for (cmo in cmo.names) {
+  cell.idents[[cmo]] <- confidence_table_batch_1$Barcode[which(confidence_table_batch_1[[cmo]]>0.7)]
+  print(length(cell.idents[[cmo]]))
+}
+
+for (cmo in cmo.names) {
+  w <- which(colnames(GH_seurat_batch_1) %in% cell.idents[[cmo]])
+GH_seurat_batch_1$condition[w] <- cmo
+}
+
+#Changing names from CMO to condition
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO301")] <- "H1_D00"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO302")] <- "H1_D0"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO303")] <- "H1_D7m"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO304")] <- "H1_D14m"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO305")] <- "H1_D7c"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO306")] <- "H1_D14c"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO307")] <- "H2_D00"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO308")] <- "H2_D0"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO309")] <- "H2_D7m"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO310")] <- "H2_D14m"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO311")] <- "H2_D7c"
+GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO312")] <- "H2_D14c"
+
+library(dplyr)
+
+# Assuming your data frame is called your_data_frame
+GH_seurat_batch1_clean_df %>%
+  filter(condition == "H1_D00") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+GH_seurat_batch1_clean_df %>%
+  filter(condition == "H2_D14c") %>%
+  nrow()
+
+GH_seurat_batch1_df <-  GH_seurat_batch_1@meta.data
+
+GH_seurat_batch1_clean <- subset(GH_seurat_batch_1, subset = condition != "")
+GH_seurat_batch1_clean_df <-  GH_seurat_batch1_clean@meta.data
+
+#Checking to make sure that we did not lose any cells in the process. The number of cells assigned to each CMO here should be the same as lines #30-35
+value_counts <- table(GH_seurat_batch1_clean_df$condition)
+print(value_counts)
+
+save(GH_seurat_batch1_clean, file = "GH_seurat_batch1_clean.RData")
+```
+
+File for species assignment data
+```{r}
+
+spp <- readRDS("/project2/gilad/ghousman/chondro-human-chimp/hc-chondro-time/chondro-time-evo/data/06_spp_assign.rds")
+
+```
+
+### Processing count matrices
+
+Compile 10X data using seurat.
+
+Each dataset being evaluated comprises gene count data that were seperately calculated using both the hg38 human genome and the panTro6 chimpanzee genome, as well as the corresponding ortho-exon annotation in cellranger. Species-specific assignments were determined using human-chimpanzee genome combination with ortho-exon annotation.
+
+```{bash, eval=FALSE, echo=TRUE}
+#If you want to run the code in terminal 
+
+##easties to run these scripts on the cluster
+#cd /project2/gilad/ghousman/skeletal-human-chimp/human-chimp-skeletal-scRNA
+#sinteractive --mem=24g --time=12:00:00 --partition=broadwl
+#module load R/4.2.0
+#R
+```
+
+```{r load libraries, eval=FALSE, echo=TRUE}
+
+library(Seurat)
+library(dplyr)
+library(stringi)
+library(stringr)
+library(ggplot2)
+library(colorspace)
+library(RColorBrewer)
+library(tibble)
+
+```
+
+```{r load batch information, eval=FALSE, echo=TRUE}
+
+#Load batch info
+
+#batch <- read.csv(file='./data/scrna-batch.csv', header=TRUE, sep=",")
+
+#batch <- as.data.frame(t(c("1-C","1","Chondrocyte","GHO-3","H1-C","H23555","M",22,"C1-C","C8861","M",16)))
+#colnames(batch) <- c("Pooled_Sample_Name","Batch","Cell_Type","Sample_Name_at_Core",
+#                     "Human_Sample_in_Pool","Human_Individual_in_Pool","Human_Sex_in_Pool","Human_Age_in_Pool",
+#                     "Chimp_Sample_in_Pool","Chimp_Individual_in_Pool","Chimp_Sex_in_Pool","Chimp_Age_in_Pool")
+
+batch <- c("GH_seurat_batch1_clean","GH_seurat_batch2_clean")
+sample_tot <- c("H5_D0","H5_D14c","H3_D7m","H3_D14c","H1_D00","H1_D0","H1_D7m","H1_D14m","H1_D7c","H1_D14c","H2_D00","H2_D0","H2_D7m","H2_D14m","H2_D7c","H2_D14c")
+
+```
+
+Adding species assignment to both batches and then will subset the seurat object to only include humans
+```{r}
+GH_seurat_batch1_clean_df 
+#Converting the actual first row into a column 
+GH_seurat_batch1_clean_df<- rownames_to_column(GH_seurat_batch1_clean_df, var = "barcode")
+#Getting rid of the -1 in the barcodes column
+GH_seurat_batch1_clean_df$barcode <- gsub("-1", "", GH_seurat_batch1_clean_df$barcode)
+
+#Subsetting spp table so it only has batch1 information
+spp_batch1 <- spp[spp$batch == 'batch1', ]
+
+# Find common barcodes 
+common_barcodes <- spp_batch1$barcode[spp_batch1$barcode %in% GH_seurat_batch1_clean_df$barcode]
+
+library(dplyr)
+result_df <- anti_join(GH_seurat_batch1_clean_df, spp_batch1, by = "barcode") %>%
+  select(spp_batch1, "NEWcall")
+mean(result$nFeature_RNA)
+
+#13,560 common barcodes but total number of cells is 15,133 so we are missing 1573 barcodes. These 1573 barcodes need to be added to the spp_batch1_subset table even if they do not have a species assignment since they are not in the table in the first place. 
+
+spp_batch1_subset <- spp_batch1[spp_batch1$barcode %in% common_barcodes, ]
+
+non_matching_barcodes <- GH_seurat_batch1_clean_df %>%
+  anti_join(spp_batch1, by = "barcode")
+
+non_matching_barcodes <- non_matching_barcodes %>%
+  mutate(
+    ChimpOrthoV2 = NA,  # Create a new column with NA values
+    HumanOrthoV2 = NA,  # Create a new column with NA values
+    call = NA,         # Create a new column with NA values
+    Collection.Name = NA,  # Create a new column with NA values
+    TotalOrthoV2 = NA,    # Create a new column with NA values
+    RatioOrthoV2 = NA,    # Create a new column with NA values
+    NEWcall = NA,         # Create a new column with NA values
+    batch = NA
+  ) %>%
+  select(-orig.ident, -nCount_RNA, -nFeature_RNA, -condition)
+
+spp_batch1_subset_full <- rbind(spp_batch1_subset, non_matching_barcodes)
+
+species_assignment <- spp_batch1_subset_full$NEWcall
+names(species_assignment) = spp_batch1_subset$barcode
+GH_seurat_batch1_clean <- AddMetaData(object=GH_seurat_batch1_clean, metadata = species_assignment, col.name ='Species')
+
+save(GH_seurat_batch1_clean, file = "GH_seurat_batch1_clean_assignments_rev.RData")
+GH_seurat_batch1_clean_df <- GH_seurat_batch1_clean@meta.data
+
+#*********************************************************************************************************
+
+GH_seurat_batch2_clean_df
+#Converting the actual first row into a column 
+GH_seurat_batch2_clean_df<- rownames_to_column(GH_seurat_batch2_clean_df, var = "barcode")
+#Getting rid of the -1 in the barcodes column
+GH_seurat_batch2_clean_df$barcode <- gsub("-1", "", GH_seurat_batch2_clean_df$barcode)
+
+#Subsetting spp table so it only has batch1 information
+spp_batch2 <- spp[spp$batch == 'batch2', ]
+
+# Find common barcodes using the %in% operator
+common_barcodes_2 <- spp_batch2$barcode[spp_batch2$barcode %in% GH_seurat_batch2_clean_df$barcode]
+#x common barcodes but total number of cells is y so we are missing z barcodes. These z barcodes need to be added to the spp_batch2_subset table even if they do not have a species assignment since they are not in the table in the first place.
+
+spp_batch2_subset <- spp_batch2[spp_batch2$barcode %in% common_barcodes_2, ]
+
+non_matching_barcodes_2 <- GH_seurat_batch2_clean_df %>%
+  anti_join(spp_batch2, by = "barcode")
+
+non_matching_barcodes_2 <- non_matching_barcodes_2 %>%
+  mutate(
+    ChimpOrthoV2 = NA,  # Create a new column with NA values
+    HumanOrthoV2 = NA,  # Create a new column with NA values
+    call = NA,         # Create a new column with NA values
+    Collection.Name = NA,  # Create a new column with NA values
+    TotalOrthoV2 = NA,    # Create a new column with NA values
+    RatioOrthoV2 = NA,    # Create a new column with NA values
+    NEWcall = NA,         # Create a new column with NA values
+    batch = NA
+  ) %>%
+  select(-orig.ident, -nCount_RNA, -nFeature_RNA, -condition)
+
+spp_batch2_subset_full <- rbind(spp_batch2_subset, non_matching_barcodes_2)
+
+
+species_assignment <- spp_batch2_subset_full$NEWcall
+names(species_assignment) = spp_batch2_subset$barcode
+GH_seurat_batch2_clean <- AddMetaData(object=GH_seurat_batch2_clean, metadata = species_assignment, col.name ='Species')
+
+save(GH_seurat_batch2_clean, file = "GH_seurat_batch2_clean_assignments.RData")
+
+
+
+#******************************************************************************************************
+
+```
+
+```{r}
+
+GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
+GH_seurat_batch2_clean_human <- subset(GH_seurat_batch2_clean, subset = Species == 'Human')
+
+GH_seurat_batch2_clean_human_df <- GH_seurat_batch2_clean_human@meta.data
+
+GH_seurat_batch2_clean_human_df %>%
+  filter(condition == "H5_D14c") %>%
+  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
+
+GH_seurat_batch2_clean_human_df %>%
+  filter(condition == "H3_D7m") %>%
+  nrow()
+
+filtered_table1 <- table1 %>%
+  anti_join(table2, by = "id")
+mean(filtered_table1$nfeature, na.rm = TRUE)
+
+GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
+GH_seurat_batch1_clean_human_df <- GH_seurat_batch1_clean_human@meta.data
+
+library(dplyr)
+GH_seurat_batch1_clean_human_df %>%
+  filter(condition == "H2_D14c") %>%
+  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
+
+GH_seurat_batch1_clean_human_df %>%
+  filter(condition == "H2_D14c") %>%
+  nrow()
+
+#Converting the actual first row into a column 
+GH_seurat_batch1_clean_human_df<- rownames_to_column(GH_seurat_batch1_clean_human_df, var = "barcode")
+#Getting rid of the -1 in the barcodes column
+GH_seurat_batch1_clean_human_df$barcode <- gsub("-1", "", GH_seurat_batch1_clean_human_df$barcode)
+
+filtered_table1 <- GH_seurat_batch1_clean_human_df %>%
+  anti_join(spp_batch1, by = "barcode")
+
+filtered_table1 %>%
+  filter(condition == "H1_D00") %>%
+  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
+
+filtered_table1 %>%
+  filter(condition == "H1_D00") %>%
+  nrow()
+
+
+GH_seurat_batch1_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_clean_human, pattern = "^MT-")
+
+GH_seurat_batch2_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean_human, pattern = "^MT-")
+
+table_1$new_column <- sub("_(.*)", "", table_1$condition)
+table_2$new_column <- sub("_(.*)", "", table_2$condition)
+
+
+GH_seurat_batch1_clean <- AddMetaData(object=GH_seurat_batch1_clean, metadata = species_assignment, col.name ='Species')
+
+vector2 <- table_2$new_column
+
+GH_seurat_batch1_clean_human_1 <- AddMetaData(object=GH_seurat_batch1_clean_human , metadata = table_1)
+GH_seurat_batch2_clean_human_2 <- AddMetaData(object=GH_seurat_batch2_clean_human , metadata = table_2)
+
+
+seurat_revised[["percent.mt"]] <- PercentageFeatureSet(seurat_revised, pattern = "^MT-")
+
+seurat_revised<- subset(seurat_revised, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+GH_seurat_batch2_clean_human <- subset(GH_seurat_batch2_clean_human, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean_human, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+
+#Seurat objects being used
+NA18856 <- subset(seurat_revised, subset = donor_id == 'NA18856')
+NA18855 <- subset(seurat_revised, subset = donor_id == 'NA18855')
+NA19160 <- subset(seurat_revised, subset = donor_id == 'NA19160')
+H1 <- subset(GH_seurat_batch1_clean_human_1, subset = new_column == 'H1')
+H3 <- subset(GH_seurat_batch2_clean_human_2, subset = new_column == 'H3')
+H5 <- subset(GH_seurat_batch2_clean_human_2, subset = new_column == 'H5')
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160, H1, H3, H5)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:25)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:25)
+
+save(cells.combined, file = "cells.combined.GH_EM_before.res.RData")
+
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+
+# Visualization
+p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+p1 + p2
+
+DimPlot(cells.combined, reduction = "umap", split.by = "condition")
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition == "D0"))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D0", "H1_D0","H5_D0")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D00", "H1_D00","H5_D0","D0","H1_D0")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7c", "H1_D7c","D14c","H1_D14c","H5_D14c","H3_D14c")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D14c","H1_D14c","H5_D14c","H3_D14c")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7c", "H1_D7c")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D0","D00","D7c", "H1_D7c","D14c","H1_D14c","H5_D14c","H3_D14c", "D7m","D14m","H1_D14m","H1_D7m","H3_D7m")))
+
+DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7m","D14m","H1_D14m","H1_D7m","H3_D7m")))
+
+FeaturePlot(cells.combined, features = c("SOX9", "SOX5", "SOX6", "COL2A1", "ACAN", "COL9A1", "MATN3", "SPARC", "COL11A1","COL10A1","PRG4"))
+
+FeaturePlot(cells.combined, features = "NES")
+FeaturePlot(cells.combined, features = "SOX2")
+FeaturePlot(cells.combined, features = "OTX2")
+FeaturePlot(cells.combined, features = "WNT3A")
+
+
+FeaturePlot(cells.combined, features = "SOX5")
+FeaturePlot(cells.combined, features = "SOX6")
+FeaturePlot(cells.combined, features = "COL2A1")
+FeaturePlot(cells.combined, features = "ACAN") #only in Wu
+FeaturePlot(cells.combined, features = "COL9A1") #only in Wu
+FeaturePlot(cells.combined, features = "MATN3") #mainly in Wu
+FeaturePlot(cells.combined, features = "SPARC") #mainly in Wu
+FeaturePlot(cells.combined, features = "COL11A1")
+FeaturePlot(cells.combined, features = "PRG4")
+
+
+na_rows <- table_1_test[is.na(table_1_test$species), ]
+
+# Create a histogram of the 'n_featureRNA' column for the selected rows
+hist(na_rows$n_FeatureRNA)
+
+
+#feature count + UMI count (each individual and time point to see how variable it is); make a table that is individual timepoint then have the number of single cells that are in the data, number of genes per cell, UMP, nFeature (to see how different those are)
+
+#look at the individual distribution of in the UMAP to see if they cluster together
+#genes highly expressed in cluster 10 vs. the other day 7 and day 14. (is that one individual or all of the individual there)
+
+#look more closely at the mesenspheres and where they are
+
+#topic modeling (unsupervised --> define how many groups you want.worth while to try 6 and 3)
+
+library(data.table)
+
+
+
+# Print the result
+print(average_ncount_H1_D7m)
+
+```
+
+```{r load data and packages}
+library(fastTopics)
+library(Seurat)
+library(Matrix)
+
+merged_data <- merge(GH_seurat_batch2_clean_human, y = c(GH_seurat_batch1_clean_human, seurat_revised), project = "Combined.common")
+dim(merged_data)
+
+saveRDS(merged_data, "/project2/gilad/emaan/time_project/data/merged_data.rds")
+
+#load data (stored in a seurat object)
+merged_data <- readRDS("/project2/gilad/emaan/time_project/data/merged_data.rds")
+
+#Extract raw count matrix from seurat object and get it in correct format for fastTopics
+#need to fit the model to the count data (unintegrated)
+raw_counts <- merged_data@assays$RNA@counts
+#remove genes without any counts in droplets
+raw_counts <- raw_counts[rowSums(raw_counts > 0) > 0,] 
+#get into correct orientation (barcodes x features)
+raw_counts <- t(raw_counts)
+dim(raw_counts)
+```
+
+# Use fastTopics functions to fit a topic model k=3 or k=6 to the data
+
+```{r fit topic model}
+library(fastTopics)
+library(Seurat)
+library(Matrix)
+
+if (file.exists("output/topicModel_k=3.rds")) {
+  fit <- readRDS("output/topicModel_k=3.rds")
+} else {
+  fit <- fit_poisson_nmf(raw_counts,k = 3,numiter = 100)
+  saveRDS(fit, "output/topicModel_k=3.rds")
+}
+
+#compute weights and topics (rescale each of l and f to add up to 1)
+l <- fit$L
+f <- fit$F
+weights <- sweep(l, MARGIN = 2, colSums(f), `*`)
+scale <- rowSums(weights)
+weights <- weights / scale
+topics <- f / colSums(f) # add up to 1
+```
+
+# Heatmap
+
+Here we select a few marker genes to represent iPSCs, MSCs, Hepatocytes, and Chondrocytes and visualize the relative loadings of these marker genes in each of the 7 fitted topics using a scaled heatmap.
+
+```{r plot correlations external}
+library(stringr)
+library(tidyverse)
+library(pheatmap)
+library(dummies)
+
+
+#selected markers for different cell types
+MSC_markers <- c("THY1", "NT5E", "ENG")
+Chondrocyte_markers <- c("COL2A1", "ACAN", "SOX9", "SOX5", "SOX6", "COL9A1")
+Hepatocyte_markers <- c("ALB")
+iPSC_markers <- c("POU5F1", "SOX2", "NANOG")
+markers <- c(iPSC_markers, Hepatocyte_markers, Chondrocyte_markers, MSC_markers)
+#annotate the markers with the cell type they represent
+markers_description <- data.frame(marker_type = c(rep("iPSC", 3), rep("Hepatocyte", 1), rep("Chondrocyte", 6), rep("MSC", 3)))
+rownames(markers_description) <- markers
+
+#plot heatmap of relative expression of marker genes in each topic
+topics_markers <- topics[markers,]
+pheatmap(topics_markers, cluster_cols = FALSE, cluster_rows = FALSE, annotation_row = markers_description, scale = "row")
+```
+
+# Structure Plot
+
+The structure plot represents the topic membership proportions of individual cells in each of the cell types using stacked bar plots.
+
+```{r structure plot external}
+#get labels of cells (cell type) and reorder to group them
+sample <- as.data.frame(merged_data@meta.data$Cell.Type)
+sample_labels <- sample %>% 
+     dplyr::transmute(Cell.Type = stringr::word(`merged_data@meta.data$Cell.Type`, start = 1))
+rownames(sample_labels) <- rownames(merged_data@meta.data)
+sample <- sample_labels %>% 
+     dplyr::arrange(Cell.Type)
+
+
+set.seed(1)
+topic_colors <- c("gold", "grey", "firebrick", "forestgreen", "royalblue", "turquoise", "salmon")
+topics_order <- c(2, 3, 1, 7, 5, 4, 6)
+rows_keep <- sort(c(sample(which(sample_labels$Cell.Type == "Hepatocyte"), 800),
+               sample(which(sample_labels$Cell.Type == "iPSC"), 800),
+               sample(which(sample_labels$Cell.Type == "iPSC-MSC"), 800),
+               which(sample_labels$Cell.Type == "iPSC-Chondrocyte"),
+               sample(which(sample_labels$Cell.Type == "iPSC-Chondro_GAH"), 800),
+               sample(which(sample_labels$Cell.Type == "iPSC-Osteo"), 800),
+               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d7"), 800),
+               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d14"), 800),
+               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d28"), 800),
+               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d42"), 800),
+               sample(which(sample_labels$Cell.Type == "chou_chondrocyte"), 800),
+               sample(which(sample_labels$Cell.Type == "ji_chondrocyte"), 800)))
+structure_plot <- structure_plot(dplyr::select(poisson2multinom(fit),loadings = rows_keep),
+                      grouping = factor(sample_labels[rows_keep,"Cell.Type"], 
+                                        c("Hepatocyte", "iPSC", "iPSC-MSC", 
+                                          "iPSC-Osteo", "iPSC-Chondro_GAH",
+                                          "iPSC-Chondrocyte", "Wu_chondrogenic_pellet_d7", "Wu_chondrogenic_pellet_d14", "Wu_chondrogenic_pellet_d28", "Wu_chondrogenic_pellet_d42", "chou_chondrocyte", "ji_chondrocyte")),
+                      topics = topics_order,
+                      colors = topic_colors[topics_order],
+                      perplexity = c(50),
+                      n = 6043,gap = 100,num_threads = 4,verbose = FALSE)
+print(structure_plot)
+```
+
+
+
+

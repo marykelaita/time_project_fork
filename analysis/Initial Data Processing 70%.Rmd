@@ -1,0 +1,380 @@
+---
+title: "Initial Data Processing 70%"
+output: html_document
+date: '2023-02-03'
+---
+
+Data being pulled is from the /project2/gilad/emaan/chondro_rev folder. There is another folder named /project2/gilad/emaan/chondro but data from that folder is not being used (since there was an issue with the bam files not merging/taking to long). Vireo was also only run on the chondro_rev folder. 
+
+Data from only the first sequencing run is in the /project2/gilad/emaan/project folder.
+
+Seurat object being loaded in has a 70% threshhold for assigning CMOs to cell types. 
+```{r setup, include=FALSE}
+
+dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
+dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
+
+library(dplyr)
+library(Seurat)
+
+#Creating a Seurat object
+time_data_rev <- '/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/multi/count/raw_feature_bc_matrix'
+
+list.files(time_data_rev) 
+data <- Read10X(data.dir = time_data_rev)
+
+#This Seurat object only has the gene expression data
+seurat_object = CreateSeuratObject(counts = data$`Gene Expression`)
+
+#Contains the barcodes of the cells, assignment to the CMOs, and assignment probability. Any cells that are unassigned have a CMO probability less than 70% and will be removed downstream
+
+confidence_table <- read.csv("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/multi/multiplexing_analysis/assignment_confidence_table.csv")
+
+seurat_df= seurat_object@meta.data
+
+```
+
+Adding confidence values into the meta data. Cells with a probability less than 0.7 are removed.
+```{r}
+seurat_object$condition <- ""
+
+#This part of the code outputs the number of cells that are assigned to each CMO
+cell.idents <- list()
+cmo.names <- names(confidence_table[,2:7])
+for (cmo in cmo.names) {
+  cell.idents[[cmo]] <- confidence_table$Barcode[which(confidence_table[[cmo]]>0.7)]
+  print(length(cell.idents[[cmo]]))
+}
+
+for (cmo in cmo.names) {
+  w <- which(colnames(seurat_object) %in% cell.idents[[cmo]])
+  seurat_object$condition[w] <- cmo
+}
+
+#prob_id <- confidence_table$Assignment
+#names(prob_id) = confidence_table$Barcode
+#new_seurat <- AddMetaData(object=seurat_object, metadata = prob_id,   col.name ='prob_id')
+#seurat_df_3= new_seurat@meta.data
+
+#donor_id <- vireo_final$donor_id
+#names(donor_id) = vireo_final$cell
+#new_seurat <- AddMetaData(object=seurat_object, metadata = donor_id,   col.name ='donor_id')
+
+#Changing names from CMO to condition
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO301")] <- "D00"
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO308")] <- "D0"
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO309")] <- "D7m"
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO310")] <- "D14m"
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO311")] <- "D7c"
+seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO312")] <- "D14c"
+
+```
+
+Adding information from vireo. Have to first combine the vireo outputs for each condition. Only including donor ID and max probability. Removing any rows that do not have a CMO assigned to them. Rows that do not have CMO assignment correspond with rows that do not have individual assignment. Final seurat object is saved as seurat_revised. 
+```{r}
+#Adding in information from vireo. Have to first combine the vireo outputs for each condition. 
+
+df1 <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d0/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df2  <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d00/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df3 <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d7_c/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df4 <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d7_m/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df5 <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d14_c/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df6 <- read.table ("/project2/gilad/emaan/chondro_rev/time_course_rev_7/outs/per_sample_outs/d14_m/count/vireo/donor_ids.tsv", sep="\t", header=TRUE)
+
+df12 <- rbind(df1, df2)
+df34 <- rbind(df3, df4)
+df56 <- rbind(df5, df6)
+df_A <- rbind(df12,df34)
+vireo_final <- rbind(df_A,df56)
+
+donor_id <- vireo_final$donor_id
+names(donor_id) = vireo_final$cell
+new_seurat <- AddMetaData(object=seurat_object, metadata = donor_id,   col.name ='donor_id')
+
+prob_max <- vireo_final$prob_max
+names(prob_max) = vireo_final$cell
+seurat_final <- AddMetaData(object=new_seurat, metadata = prob_max,   col.name ='prob_max')
+seurat_df= seurat_final@meta.data
+
+#removing rows that do not have a CMO assigned to them
+seurat_revised <- subset(seurat_final, subset = condition != "")
+seurat_r_df= seurat_revised@meta.data
+
+save(seurat_revised, file = "seurat_revised_2023.RData")
+```
+The rest of the script if related to QC metrics and adding any additional information. This is the end for having the necessary seurat file for downstream processing 
+
+
+QC Metrics: determining the nFeature RNA range and percent mitochondria DNA. Saved seurat object with % mitochondrial DNA included and nFeature RNA cutoffs. 
+```{r}
+seurat_revised[["percent.mt"]] <- PercentageFeatureSet(seurat_revised, pattern = "^MT-")
+hist(seurat_revised$nFeature_RNA)
+hist(seurat_revised$nCount_RNA)
+hist(seurat_revised$percent.mt)
+
+mt_cutoff <- c(1,2,3,4,5,6,7,8,9,10, 15, 20, 25, 30, 35, 40, 45)
+mt_count <- c()
+for (i in mt_cutoff) {
+  mt_count <- c(mt_count, sum(seurat_revised@meta.data$percent.mt <= i))
+}
+mt_table <- data.frame(mt_cutoff, mt_count)
+write.csv(mt_table, file="mt_table.csv")
+
+plot(mt_cutoff, mt_count, main="mt cutoff")
+
+# nFeature RNA
+rna_cutoff <- c(100,200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000)
+rna_count <- c()
+for (i in rna_cutoff) {
+  rna_count <- c(rna_count, sum(seurat_revised@meta.data$nFeature_RNA >= i))
+}
+rna_table <- data.frame(rna_cutoff, rna_count)
+write.csv(rna_table, file="rna_table.csv")
+
+plot(rna_cutoff, rna_count, main="nFeature RNA")
+
+#Violin plots for cutoff
+VlnPlot(seurat_revised, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#Adding the cutoffs in the seurat object
+seurat_revised<- subset(seurat_revised, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+save(seurat_revised, file = "seurat_revised.RData")
+```
+
+Workflow for integration across individuals. Using the saved seurat object that has % mitochondrial DNA added and nFeature RNA cutoff range. 
+```{r}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+
+#Seurat objects being used
+NA18856 <- subset(seurat_revised, subset = donor_id == 'NA18856')
+NA18855 <- subset(seurat_revised, subset = donor_id == 'NA18855')
+NA19160 <- subset(seurat_revised, subset = donor_id == 'NA19160')
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:30)
+save(cells.combined, file = "cells.combined.before.res.RData")
+
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+
+# Visualization
+p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+p1 + p2
+
+DimPlot(cells.combined, reduction = "umap", split.by = "condition")
+
+
+# find all markers distinguishing cluster 3 from cluster 4
+cluster3.markers <- FindMarkers(cells.combined, ident.1 = 3, ident.2 = 4, min.pct = 0.25)
+head(cluster3.markers, n = 30)
+```
+
+Using Kenneth's EB data set. Want to map integrated chondro data set onto EB data set.
+```{r}
+seurat_revised[["percent.mt"]] <- PercentageFeatureSet(seurat_revised, pattern = "^MT-")
+
+
+#Pulling Kenneth's data from directory
+pilot.humans <- readRDS("/project2/gilad/kenneth/share/pilot.humans.rds")
+pilot.humans <- subset(pilot.humans, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+
+seurat_chondro <- NormalizeData(seurat_chondro, normalization.method = "LogNormalize", scale.factor = 10000)
+
+#Mapping Process: query is the chondro data that has been subsetted but not undergone pca
+anchors <- FindTransferAnchors(
+  reference = pilot.humans,
+  query = cells.combined,
+  normalization.method = "LogNormalize",
+  reference.reduction = "pca",
+  dims = 1:50,
+)
+
+pilot.humans=RunUMAP(pilot.humans,return.model=TRUE,reduction.name = "new.UMAP", dims=1:50)
+
+seurat_revised_map <- MapQuery(
+  anchorset = anchors,
+  query = cells.combined,
+  reference = pilot.humans,
+  refdata = pilot.humans$labels,
+  reference.reduction = "pca", 
+  reduction.model = "new.UMAP",
+)
+
+save(seurat_revised_map, file = "seurat_revised_map.RData")
+
+p2 = DimPlot(seurat_revised_map, reduction = "ref.umap", group.by = "predicted.id", label = TRUE, label.size =3, repel = TRUE)  +xlim(-12,10) +ylim(-10,10) + NoLegend()
+
+p1 = DimPlot(pilot.humans, reduction = "new.UMAP", group.by = "labels", label = TRUE, label.size = 3, repel = TRUE) +xlim(-12,10) +ylim(-10,10) + NoLegend()
+
+p1+p2
+```
+
+```{r}
+
+library(Matrix)
+library(Seurat)
+library(tidyverse)
+library(readxl)
+
+#Following code from Anthony
+#download Wu et al 2021 data of iPSC-Chondrocyte chondrogenic pellet differentiation time course from GEO (Series GSE160625). Data include barcodes, genes, and count matrices from samples taken from iPSCs and samples from 7, 14, 28, and 42 day chondrogenic pellets treated with chondrogenic media containing a WNT and MITF inhibitor
+
+#iPSC chondrogenic cells from directed differentiation time course  from iPSC chondrogenic pellet culture. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160625 
+count_data_wu_d7 <- readMM("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876136_C59_D7_matrix.mtx.gz")
+genes_wu_d7 <- read_tsv("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876136_C59_D7_genes.tsv.gz", col_names = F)
+barcodes_wu_d7 <- as.data.frame(read_tsv( "/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876136_C59_D7_barcodes.tsv.gz", col_names = F))
+rownames(count_data_wu_d7) <- genes_wu_d7$X2
+colnames(count_data_wu_d7) <- barcodes_wu_d7$X1
+wu_d7_seurat <- CreateSeuratObject(counts = count_data_wu_d7, project = "d7")
+wu_d7_seurat <- Seurat::AddMetaData(wu_d7_seurat, "Wu_chondrogenic_pellet_d7", col.name = "condition")
+
+count_data_wu_d14 <- readMM("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876137_C59_D14_matrix.mtx.gz")
+genes_wu_d14 <- read_tsv("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876137_C59_D14_genes.tsv.gz", col_names = F)
+barcodes_wu_d14 <- as.data.frame(read_tsv( "/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876137_C59_D14_barcodes.tsv.gz", col_names = F))
+rownames(count_data_wu_d14) <- genes_wu_d14$X2
+colnames(count_data_wu_d14) <- barcodes_wu_d14$X1
+wu_d14_seurat <- CreateSeuratObject(counts = count_data_wu_d14, project = "d14")
+wu_d14_seurat <- Seurat::AddMetaData(wu_d14_seurat, "Wu_chondrogenic_pellet_d14", col.name = "condition")
+
+count_data_wu_d28 <- readMM("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876138_C59_D28_matrix.mtx.gz")
+genes_wu_d28 <- read_tsv("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876138_C59_D28_genes.tsv.gz", col_names = F)
+barcodes_wu_d28 <- as.data.frame(read_tsv( "/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876138_C59_D28_barcodes.tsv.gz", col_names = F))
+rownames(count_data_wu_d28) <- genes_wu_d28$X2
+colnames(count_data_wu_d28) <- barcodes_wu_d28$X1
+wu_d28_seurat <- CreateSeuratObject(counts = count_data_wu_d28, project = "d28")
+wu_d28_seurat <- Seurat::AddMetaData(wu_d28_seurat, "Wu_chondrogenic_pellet_d28", col.name = "condition")
+
+count_data_wu_d42 <- readMM("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876139_C59_D42_matrix.mtx.gz")
+genes_wu_d42 <- read_tsv("/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876139_C59_D42_genes.tsv.gz", col_names = F)
+barcodes_wu_d42 <- as.data.frame(read_tsv( "/project2/gilad/emaan/time_project/data/Wuetal2021/GSM4876139_C59_D42_barcodes.tsv.gz", col_names = F))
+rownames(count_data_wu_d42) <- genes_wu_d42$X2
+colnames(count_data_wu_d42) <- barcodes_wu_d42$X1
+wu_d42_seurat <- CreateSeuratObject(counts = count_data_wu_d42, project = "d42")
+wu_d42_seurat <- Seurat::AddMetaData(wu_d42_seurat, "Wu_chondrogenic_pellet_d42", col.name = "condition")
+
+wu_combined_rev <- merge(wu_d7_seurat, y = c(wu_d14_seurat, wu_d28_seurat, wu_d42_seurat), project = "Combined.common")
+
+wu_combined_rev[["percent.mt"]] <- PercentageFeatureSet(wu_combined_rev, pattern = "^MT-")
+wu_combined_rev <- subset(wu_combined_rev, subset = percent.mt < 5)
+dim(wu_combined_rev)
+
+save(wu_combined_rev, file = "wu_combined_rev.RData")
+
+```
+
+```{r}
+#Seurat objects being used
+seurat_chondro<- subset(seurat_chondro, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+NA18856 <- subset(seurat_revised, subset = donor_id == 'NA18856')
+NA18855 <- subset(seurat_revised, subset = donor_id == 'NA18855')
+NA19160 <- subset(seurat_revised, subset = donor_id == 'NA19160')
+
+load("/project2/gilad/emaan/time_project/wu_combined.RData")
+wu_combined<- subset(wu_combined, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856,NA18855,NA19160)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 30, verbose = FALSE)
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindClusters(cells.combined, resolution = 0.3)
+save(cells.combined, file = "cells.combined.RData")
+
+# Visualization
+p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+
+p2 <- DimPlot(cells.combined, reduction = "umap", group.by = "Cell.Type")
+
+p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+p1 + p2
+
+DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE )
+
+
+FeaturePlot(cells.combined, features = c("SOX9", "SOX5", "SOX6", "COL2A1", "ACAN", "COL9A1", "MATN3", "SPARC", "COL11A1","COL10A1","PRG4"))
+
+DefaultAssay(cells.combined) <- "RNA"
+
+FeaturePlot(cells.combined, features = "NES")
+FeaturePlot(cells.combined, features = "SOX2")
+FeaturePlot(cells.combined, features = "OTX2")
+FeaturePlot(cells.combined, features = "WNT3A")
+
+
+FeaturePlot(cells.combined, features = "SOX5")
+FeaturePlot(cells.combined, features = "SOX6")
+FeaturePlot(cells.combined, features = "COL2A1")
+FeaturePlot(cells.combined, features = "ACAN") #only in Wu
+FeaturePlot(cells.combined, features = "COL9A1") #only in Wu
+FeaturePlot(cells.combined, features = "MATN3") #mainly in Wu
+FeaturePlot(cells.combined, features = "SPARC") #mainly in Wu
+FeaturePlot(cells.combined, features = "COL11A1")
+FeaturePlot(cells.combined, features = "PRG4")
+
+Idents(cells.combined) <- factor(Idents(cells.combined))
+markers.to.plot <- c("SOX9", "SOX5", "SOX6", "COL2A1", "ACAN", "COL9A1", "MATN3", "SPARC", "COL11A1",
+    "PRG4")
+DotPlot(cells.combined, features = markers.to.plot, cols = c("blue", "red"), dot.scale = 8) +
+    RotatedAxis()
+
+plots <- VlnPlot(cells.combined, features = c("SOX9"), split.by = "Cell.Type",
+    pt.size = 0, combine = FALSE)
+wrap_plots(plots = plots, ncol = 1)
+
+```

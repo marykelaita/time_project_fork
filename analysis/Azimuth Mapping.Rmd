@@ -1,0 +1,467 @@
+---
+title: "Azimuth Mapping"
+output: html_document
+date: '2022-11-11'
+---
+
+In order to use the Azimuth app through the internet the Seurat object has to be in the format of h5ad file. Do not have to separate out the time points into separate Seurat objects but code is included for reference. 
+```{r}
+#How to have files be in the proper format so they can be uploaded into Azimuth app
+
+library(Seurat)
+library(Azimuth)
+library(SeuratData)
+library(patchwork)
+library(SeuratDisk)
+
+d00_object <- subset(seurat_object_subset, subset = condition == 'CMO301')
+d0_object <- subset(seurat_object_subset, subset = condition == 'CMO308')
+d7m_object <- subset(seurat_object_subset, subset = condition == 'CMO309')
+d14m_object <- subset(seurat_object_subset, subset = condition == 'CMO310')
+d14c_object <- subset(seurat_object_subset, subset = condition == 'CMO312')
+d7c_object <- subset(seurat_object_subset, subset = condition == 'CMO311')
+
+#Convert each Seurat object into the .h5ad format
+SaveH5Seurat(seurat_revised, filename = "seurat_revised.h5Seurat")
+Convert("seurat_revised.h5Seurat", dest = "h5ad")
+
+SaveH5Seurat(seurat_object_subset, filename = "seurat_object_subset.h5Seurat")
+Convert("seurat_object_subset.h5Seurat", dest = "h5ad")
+
+SaveH5Seurat(seurat_chondro, filename = "seurat_chondro_azimuth_f.h5Seurat")
+Convert("seurat_chondro_azimuth_f.h5Seurat", dest = "h5ad")
+
+```
+
+Workflow for inputting azimuth table for human fetal cells. The outputted heatmap is representing the number of cells assigned to a given cell type. 
+```{r}
+#FETAL W/ ALL DATA
+
+#Uploading data from fetal reference
+fetal_all<- read.csv(file = "/project2/gilad/emaan/time_project/data/fetal_all_chondro.tsv", head=TRUE, sep="\t")
+
+#Uploading Seurat object subset original
+load("/project2/gilad/emaan/time_project/data/seurat_object_subset.RData")
+
+#Making a table from the Seruat object including only the meta data
+seurat_table <- seurat_chondro@meta.data
+
+#In the seurat table making the CMO sequence a column instead of a row
+library(tibble)
+seurat_table <- tibble::rownames_to_column(seurat_table, "cell")
+
+fetal_all <- merge(seurat_table, fetal_all, by='cell', all.x=TRUE)
+
+#Remove all rows with NA
+fetal_all <- fetal_all[complete.cases(fetal_all), ]
+
+#Putting columns in a specific order
+fetal_all$condition <- factor(fetal_all$condition, levels = c("D00", "D0", "D7c","D14c"))
+
+#Making heatmap with filling by mapping score
+library(ggplot2)
+ggplot(data =  fetal_all, aes(x = condition, y = predicted.annotation.l1)) + 
+  geom_tile(aes(fill = mapping.score)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") 
+
+```
+
+Workflow for creating a heatmap that has the frequency of cell in a given condition for a given cell type in the human fetal referance. 
+```{r}
+#FETAL W/ ALL DATA FREQUENCY
+
+#Subseting the fetal all dataframe into dataframes for each time point so we can find the frequencies for cells within each time point
+
+library(dplyr)
+
+# Function to calculate frequency and percentage for a given condition
+calculate_frequency <- function(condition, data) {
+  subset_data <- subset(data, data$condition == condition, select = c("predicted.annotation.l1","condition"))
+  frequency <- count(subset_data, subset_data$predicted.annotation.l1)
+  total_samples <- sum(frequency$n)
+  frequency$percentage <- (frequency$n/total_samples) * 100
+  colnames(frequency)[1] <- "predicted.annotation.l1"
+  frequency$condition <- condition
+  return(frequency)
+}
+
+# Apply the function to each condition
+d00_fetal_frequency <- calculate_frequency("D00", fetal_all)
+d0_fetal_frequency <- calculate_frequency("D0", fetal_all)
+d7c_fetal_frequency <- calculate_frequency("D7c", fetal_all)
+d14c_fetal_frequency <- calculate_frequency("D14c", fetal_all)
+d7m_fetal_frequency <- calculate_frequency("D7m", fetal_all)
+d14m_fetal_frequency <- calculate_frequency("D14m", fetal_all)
+
+# Combine all frequency tables
+total_fetal_freq <- rbind(d00_fetal_frequency, d0_fetal_frequency, d7c_fetal_frequency, d14c_fetal_frequency, d7m_fetal_frequency, d14m_fetal_frequency)
+
+# Order the levels of the condition column
+total_fetal_freq$condition <- factor(total_fetal_freq$condition, levels = c("D00", "D0", "D7m", "D14m", "D7c", "D14c"))
+
+# Create the plot
+ggplot(data = total_fetal_freq, aes(x = condition, y = predicted.annotation.l1)) + 
+  geom_tile(aes(fill = percentage)) + 
+  scale_fill_gradient2(high = "blue", guide = "colorbar", aesthetics = "fill")
+
+ggplot(data =  total_fetal_freq, aes(x = condition, y = predicted.annotation.l1)) + 
+  geom_tile(aes(fill = percentage)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") 
+
+#***D00***
+d00_fetal_all <- subset(fetal_all, fetal_all$condition == "D00", select = c("predicted.annotation.l1","condition"))
+d00_fetal_frequency <- count(d00_fetal_all, d00_fetal_all$predicted.annotation.l1)
+sum(d00_fetal_frequency$n)
+d00_fetal_frequency$percentage <- (d00_fetal_frequency$n/sum(d00_fetal_frequency$n)) *100
+
+#***D0***
+d0_fetal_all <- subset(fetal_all, fetal_all$condition == "D0", select = c("predicted.annotation.l1","condition")) 
+d0_fetal_frequency <- count(d0_fetal_all, d0_fetal_all$predicted.annotation.l1)
+sum(d0_fetal_frequency$n)
+d0_fetal_frequency$percentage <- ""
+d0_fetal_frequency$percentage <- (d0_fetal_frequency$n/sum(d0_fetal_frequency$n)) *100
+
+#***D7C***
+d7c_fetal_all <- subset(fetal_all, fetal_all$condition == "D7c", select = c("predicted.annotation.l1","condition"))
+d7c_fetal_frequency <- count(d7c_fetal_all, d7c_fetal_all$predicted.annotation.l1)
+sum(d7c_fetal_frequency$n)
+d7c_fetal_frequency$percentage <- ""
+d7c_fetal_frequency$percentage <- (d7c_fetal_frequency$n/sum(d7c_fetal_frequency$n)) *100
+
+#***D14C***
+d14c_fetal_all <- subset(fetal_all, fetal_all$condition == "D14c", select = c("predicted.annotation.l1","condition"))
+d14c_fetal_frequency <- count(d14c_fetal_all, d14c_fetal_all$predicted.annotation.l1)
+sum(d14c_fetal_frequency$n)
+d14c_fetal_frequency$percentage <- ""
+d14c_fetal_frequency$percentage <- (d14c_fetal_frequency$n/sum(d14c_fetal_frequency$n)) *100
+
+#***D7M***
+d7m_fetal_all <- subset(fetal_all, fetal_all$condition == "D7m", select = c("predicted.annotation.l1","condition"))
+d7m_fetal_frequency <- count(d7m_fetal_all, d7m_fetal_all$predicted.annotation.l1)
+sum(d7m_fetal_frequency$n)
+d7m_fetal_frequency$percentage <- ""
+d7m_fetal_frequency$percentage <- (d7m_fetal_frequency$n/sum(d7m_fetal_frequency$n)) *100
+
+#***D14M***
+d14m_fetal_all <- subset(fetal_all, fetal_all$condition == "D14m", select = c("predicted.annotation.l1","condition"))
+d14m_fetal_frequency <- count(d14m_fetal_all, d14m_fetal_all$predicted.annotation.l1)
+sum(d14m_fetal_frequency$n)
+d14m_fetal_frequency$percentage <- ""
+d14m_fetal_frequency$percentage <- (d14m_fetal_frequency$n/sum(d14m_fetal_frequency$n)) *100
+
+#Renaming columns of every table and adding coloumn that has a time point
+colnames(d00_fetal_frequency)[1] ="predicted.annotation.l1"
+d00_fetal_frequency$condition <- "D00"
+
+colnames(d0_fetal_frequency)[1] ="predicted.annotation.l1"
+d0_fetal_frequency$condition <- "D0"
+
+colnames(d7m_fetal_frequency)[1] ="predicted.annotation.l1"
+d7m_fetal_frequency$condition <- "D7m"
+
+colnames(d14m_fetal_frequency)[1] ="predicted.annotation.l1"
+d14m_fetal_frequency$condition <- "D14m"
+
+colnames(d7c_fetal_frequency)[1] ="predicted.annotation.l1"
+d7c_fetal_frequency$condition <- "D7c"
+
+colnames(d14c_fetal_frequency)[1] ="predicted.annotation.l1"
+d14c_fetal_frequency$condition <- "D14c"
+
+total_fetal_freq <- rbind(d00_fetal_frequency, d0_fetal_frequency,d7c_fetal_frequency,d14c_fetal_frequency,d7m_fetal_frequency,d14m_fetal_frequency)
+
+#Putting columns in a specific order
+total_fetal_freq$condition <- factor(total_fetal_freq$condition, levels = c("D00", "D0","D7m","D14m","D7c","D14c"))
+
+ggplot(data =  total_fetal_freq, aes(x = condition, y = predicted.annotation.l1)) + 
+  geom_tile(aes(fill = percentage)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") 
+
+```
+
+Workflow for inputting azimuth table for human adipocyte cells. The outputted heatmap is representing the number of cells assigned to a given cell type. 
+```{r}
+#ADIPCOYTES W/ ALL DATA 
+
+library(ggplot2)
+
+adipocytes_all<- read.csv(file = "/project2/gilad/emaan/time_project/data/azimuth_adipocyte.tsv", head=TRUE, sep="\t")
+
+#Making a table from the Seruat object including only the meta data
+seurat_table_A <- seurat_chondro@meta.data
+
+#In the seurat table making the CMO sequence a column instead of a row
+library(tibble)
+seurat_table_A <- tibble::rownames_to_column(seurat_table_A, "cell")
+
+adipocyte_all_final <- merge(seurat_table_A, adipocytes_all, by='cell', all.x=TRUE)
+
+#Remove all rows with NA
+adipocyte_all_final <- adipocyte_all_final[complete.cases(adipocyte_all_final), ]
+
+#Putting columns in a specific order
+adipocyte_all_final$condition <- factor(adipocyte_all_final$condition, levels = c("D00", "D0","D7m","D14m","D7c","D14c"))
+
+#Making heatmap with filling by mapping score
+ggplot(data =  adipocyte_all_final, aes(x = condition, y = predicted.celltype.l1)) + 
+  geom_tile(aes(fill = mapping.score)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.text.y = element_text(color = "black"),
+        axis.ticks = element_line(color = "black"))
+
+```
+
+Workflow for creating a heatmap that has the frequency of cell in a given condition for a given cell type in the human adipocyte referance. 
+```{r}
+#ADIPCOYTES W/ ALL DATA FREQEUNCY
+
+#Subseting the fetal all dataframe into dataframes for each time point so we can find the frequencies for cells within each time point
+
+library(dplyr)
+
+#***D00***
+d00_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D00", select = c("predicted.celltype.l1","condition"))
+d00_adipocyte_frequency <- count(d00_adipocyte_all, d00_adipocyte_all$predicted.celltype.l1)
+sum(d00_adipocyte_frequency$n)
+d00_adipocyte_frequency$percentage <- (d00_adipocyte_frequency$n/sum(d00_adipocyte_frequency$n)) *100
+
+#***D0***
+d0_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D0", select = c("predicted.celltype.l1","condition"))
+d0_adipocyte_frequency <- count(d0_adipocyte_all, d0_adipocyte_all$predicted.celltype.l1)
+sum(d0_adipocyte_frequency$n)
+d0_adipocyte_frequency$percentage <- (d0_adipocyte_frequency$n/sum(d0_adipocyte_frequency$n)) *100
+
+#***D7C***
+d7c_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D7c", select = c("predicted.celltype.l1","condition"))
+d7c_adipocyte_frequency <- count(d7c_adipocyte_all, d7c_adipocyte_all$predicted.celltype.l1)
+sum(d7c_adipocyte_frequency$n)
+d7c_adipocyte_frequency$percentage <- (d7c_adipocyte_frequency$n/sum(d7c_adipocyte_frequency$n)) *100
+
+#***D14C***
+d14c_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D14c", select = c("predicted.celltype.l1","condition"))
+d14c_adipocyte_frequency <- count(d14c_adipocyte_all, d14c_adipocyte_all$predicted.celltype.l1)
+sum(d14c_adipocyte_frequency$n)
+d14c_adipocyte_frequency$percentage <- (d14c_adipocyte_frequency$n/sum(d14c_adipocyte_frequency$n)) *100
+
+#***D7M***
+d7m_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D7m", select = c("predicted.celltype.l1","condition"))
+d7m_adipocyte_frequency <- count(d7m_adipocyte_all, d7m_adipocyte_all$predicted.celltype.l1)
+d7m_adipocyte_frequency$percentage <- (d7m_adipocyte_frequency$n/sum(d7m_adipocyte_frequency$n)) *100
+
+#***D14M***
+d14m_adipocyte_all <- subset(adipocyte_all_final, adipocyte_all_final$condition == "D14m", select = c("predicted.celltype.l1","condition"))
+d14m_adipocyte_frequency <- count(d14m_adipocyte_all, d14m_adipocyte_all$predicted.celltype.l1)
+d14m_adipocyte_frequency$percentage <- (d14m_adipocyte_frequency$n/sum(d14m_adipocyte_frequency$n)) *100
+
+#Renaming columns of every table and adding coloumn that has a time point
+colnames(d00_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d00_adipocyte_frequency$condition <- "D00"
+
+colnames(d0_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d0_adipocyte_frequency$condition <- "D0"
+
+colnames(d7m_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d7m_adipocyte_frequency$condition <- "D7m"
+
+colnames(d14m_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d14m_adipocyte_frequency$condition <- "D14m"
+
+colnames(d7c_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d7c_adipocyte_frequency$condition <- "D7c"
+
+colnames(d14c_adipocyte_frequency)[1] ="predicted.annotation.l1"
+d14c_adipocyte_frequency$condition <- "D14c"
+
+total_adipocyte_freq <- rbind(d00_adipocyte_frequency, d0_adipocyte_frequency,d7c_adipocyte_frequency,d14c_adipocyte_frequency)
+
+#Putting columns in a specific order
+total_adipocyte_freq$condition <- factor(total_adipocyte_freq$condition, levels = c("D00", "D0","D7c","D14c"))
+
+ggplot(data =  total_adipocyte_freq, aes(x = condition, y = predicted.annotation.l1)) + 
+  geom_tile(aes(fill = percentage)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.text.y = element_text(color = "black"),
+        axis.ticks = element_line(color = "black"))
+```
+
+Workflow for inputting azimuth table for human heart cells. The outputted heatmap is representing the number of cells assigned to a given cell type. 
+```{r}
+#HEART W/ ALL DATA 
+
+library(ggplot2)
+
+heart_all<- read.csv(file = "/project2/gilad/emaan/time_project/data/azimuth_heart.tsv", head=TRUE, sep="\t")
+
+#Making a table from the Seruat object including only the meta data
+seurat_table_H <- seurat_chondro@meta.data
+
+#In the seurat table making the CMO sequence a column instead of a row
+library(tibble)
+seurat_table_H <- tibble::rownames_to_column(seurat_table_H, "cell")
+
+heart_all_final <- merge(seurat_table_H, heart_all, by='cell', all.x=TRUE)
+
+#Remove all rows with NA
+heart_all_final <- heart_all_final[complete.cases(heart_all_final), ]
+
+#Putting columns in a specific order
+heart_all_final$condition <- factor(heart_all_final$condition, levels = c("D00", "D0","D7m","D14m","D7c","D14c"))
+
+#Making heatmap with filling by mapping score
+ggplot(data =  heart_all_final, aes(x = condition, y = predicted.celltype.l2)) + 
+  geom_tile(aes(fill = mapping.score)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.text.y = element_text(color = "black"),
+        axis.ticks = element_line(color = "black")) 
+
+```
+
+Workflow for creating a heatmap that has the frequency of cell in a given condition for a given cell type in the human adipocyte referance. 
+```{r}
+#HEART W/ ALL DATA FREQEUNCY
+
+library(dplyr)
+
+#***D00***
+d00_heart_all <- subset(heart_all_final, heart_all_final$condition == "D00", select = c("predicted.celltype.l2","condition"))
+d00_heart_frequency <- count(d00_heart_all, d00_heart_all$predicted.celltype.l2)
+d00_heart_frequency$percentage <- (d00_heart_frequency$n/sum(d00_heart_frequency$n)) *100
+
+#***D0***
+d0_heart_all <- subset(heart_all_final, heart_all_final$condition == "D0", select = c("predicted.celltype.l2","condition"))
+d0_heart_frequency <- count(d0_heart_all, d0_heart_all$predicted.celltype.l2)
+d0_heart_frequency$percentage <- (d0_heart_frequency$n/sum(d0_heart_frequency$n)) *100
+
+#***D7C***
+d7c_heart_all <- subset(heart_all_final, heart_all_final$condition == "D7c", select = c("predicted.celltype.l2","condition"))
+d7c_heart_frequency <- count(d7c_heart_all, d7c_heart_all$predicted.celltype.l2)
+d7c_heart_frequency$percentage <- (d7c_heart_frequency$n/sum(d7c_heart_frequency$n)) *100
+
+#***D14C***
+d14c_heart_all <- subset(heart_all_final, heart_all_final$condition == "D14c", select = c("predicted.celltype.l2","condition"))
+d14c_heart_frequency <- count(d14c_heart_all, d14c_heart_all$predicted.celltype.l2)
+d14c_heart_frequency$percentage <- (d14c_heart_frequency$n/sum(d14c_heart_frequency$n)) *100
+
+#***D7M***
+d7m_heart_all <- subset(heart_all_final, heart_all_final$condition == "D7m", select = c("predicted.celltype.l2","condition"))
+d7m_heart_frequency <- count(d7m_heart_all, d7m_heart_all$predicted.celltype.l2)
+d7m_heart_frequency$percentage <- (d7m_heart_frequency$n/sum(d7m_heart_frequency$n)) *100
+
+#***D14M***
+d14m_heart_all <- subset(heart_all_final, heart_all_final$condition == "D14m", select = c("predicted.celltype.l2","condition"))
+d14m_heart_frequency <- count(d14m_heart_all, d14m_heart_all$predicted.celltype.l2)
+d14m_heart_frequency$percentage <- (d14m_heart_frequency$n/sum(d14m_heart_frequency$n)) *100
+
+#Renaming columns of every table and adding coloumn that has a time point
+colnames(d00_heart_frequency)[1] ="predicted.annotation.l2"
+d00_heart_frequency$condition <- "D00"
+
+colnames(d0_heart_frequency)[1] ="predicted.annotation.l2"
+d0_heart_frequency$condition <- "D0"
+
+colnames(d7m_heart_frequency)[1] ="predicted.annotation.l2"
+d7m_heart_frequency$condition <- "D7m"
+
+colnames(d14m_heart_frequency)[1] ="predicted.annotation.l2"
+d14m_heart_frequency$condition <- "D14m"
+
+colnames(d7c_heart_frequency)[1] ="predicted.annotation.l2"
+d7c_heart_frequency$condition <- "D7c"
+
+colnames(d14c_heart_frequency)[1] ="predicted.annotation.l2"
+d14c_heart_frequency$condition <- "D14c"
+
+total_heart_freq <- rbind(d00_heart_frequency, d0_heart_frequency,d7c_heart_frequency,d14c_heart_frequency)
+
+#Putting columns in a specific order
+total_heart_freq$condition <- factor(total_heart_freq$condition, levels = c("D00", "D0","D7c","D14c"))
+
+ggplot(data =  total_heart_freq, aes(x = condition, y = predicted.annotation.l2)) + 
+  geom_tile(aes(fill = percentage)) + scale_fill_gradient2(high="blue", guide="colorbar",aesthetics="fill") +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.text.y = element_text(color = "black"),
+        axis.ticks = element_line(color = "black")) 
+```
+
+Making histograms: (1) for a given cell type the range of cells within a timepoint are compared (2) for a given timepoint the range of cells within different cell types are compared
+```{r}
+
+#***Fetal Histograms***
+
+fetal_vascular <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "Vascular endothelial cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_stromal <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "Stromal cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_smooth <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "Smooth muscle cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_PAEP <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "PAEP_MECOM positive cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_CCL19 <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "CCL19_CCL21 positive cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_IGFBP1_DKK1 <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "IGFBP1_DKK1 positive cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_epicardial <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "Epicardial fat cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+
+fetal_neuroendocrine <- subset(fetal_all, fetal_all$predicted.annotation.l1 == "Neuroendocrine cells", select=c("mapping.score","condition","predicted.annotation.l1"))
+                         
+total_subset_fetal<- rbind(fetal_vascular,fetal_stromal,fetal_smooth,fetal_PAEP,fetal_CCL19,fetal_IGFBP1_DKK1,fetal_epicardial,fetal_neuroendocrine)
+
+ggplot(total_subset_fetal, aes(x=predicted.annotation.l1, y=mapping.score, fill=condition)) + 
+    geom_boxplot() +
+  facet_wrap(~predicted.annotation.l1, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme_classic()
+
+ggplot(total_subset_fetal, aes(x=predicted.annotation.l1, y=mapping.score, fill=predicted.annotation.l1)) + 
+    geom_boxplot() +
+  facet_wrap(~condition, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) 
+  
+#***Adipocyte Histograms***
+
+adipocyte_macrophage <- subset(adipocyte_all_final, adipocyte_all_final$predicted.celltype.l1 == "Macrophage", select=c("mapping.score","condition","predicted.celltype.l1"))
+
+adipocyte_endothelial <- subset(adipocyte_all_final, adipocyte_all_final$predicted.celltype.l1 == "Endothelial", select=c("mapping.score","condition","predicted.celltype.l1"))
+
+adipocyte_ASPC <- subset(adipocyte_all_final, adipocyte_all_final$predicted.celltype.l1 == "ASPC", select=c("mapping.score","condition","predicted.celltype.l1"))
+
+adipocytes_smooth <- subset(adipocyte_all_final, adipocyte_all_final$predicted.celltype.l1 == "Smooth Muscle", select=c("mapping.score","condition","predicted.celltype.l1"))
+
+                         
+total_subset_adipocyte<- rbind(adipocyte_macrophage,adipocyte_endothelial,adipocyte_ASPC,adipocytes_smooth)
+
+ggplot(total_subset_adipocyte, aes(x=predicted.celltype.l1, y=mapping.score, fill=condition)) + 
+    geom_boxplot() +
+  facet_wrap(~predicted.celltype.l1, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme_classic()
+
+
+ggplot(total_subset_adipocyte, aes(x=predicted.celltype.l1, y=mapping.score, fill=predicted.celltype.l1)) + 
+    geom_boxplot() +
+  facet_wrap(~condition, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme_classic()
+
+#***Heart Histograms***
+heart_mesothelial <- subset(heart_all_final, heart_all_final$predicted.celltype.l2 == "Mesothelial", select=c("mapping.score","condition","predicted.celltype.l2"))
+
+heart_pericyte <- subset(heart_all_final, heart_all_final$predicted.celltype.l2 == "Pericyte", select=c("mapping.score","condition","predicted.celltype.l2"))
+
+heart_fibroblast <- subset(heart_all_final, heart_all_final$predicted.celltype.l2 == "Fibroblast", select=c("mapping.score","condition","predicted.celltype.l2"))
+
+                         
+total_subset_heart<- rbind(heart_mesothelial,heart_pericyte,heart_fibroblast)
+
+ggplot(total_subset_heart, aes(x=predicted.celltype.l2, y=mapping.score, fill=condition)) + 
+    geom_boxplot() +
+  facet_wrap(~predicted.celltype.l2, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme_classic()
+
+ggplot(total_subset_heart, aes(x=predicted.celltype.l2, y=mapping.score, fill=predicted.celltype.l2)) + 
+    geom_boxplot() +
+  facet_wrap(~condition, scale="free")+
+  labs(x="Cell Assignment", y="Mapping Score")+
+   theme_classic()
+
+```
+

@@ -12,23 +12,30 @@ dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
 library(dplyr)
 library(Seurat)
 
+#Creating a Seurat object
 time_data_initial <- '/project2/gilad/emaan/project/time_course/outs/multi/count/raw_feature_bc_matrix'
 list.files(time_data_initial) 
 data <- Read10X(data.dir = time_data_initial)
+
+#This Seurat object only has the gene expression data
 seurat_object = CreateSeuratObject(counts = data$`Gene Expression`)
+
+#This Seurat object only has the Multiplexing data
 seurat_object_multi = CreateSeuratObject(counts = data$`Multiplexing Capture`)
 
 confidence_table <- read.csv("/project2/gilad/emaan/project/time_course/outs/multi/multiplexing_analysis/assignment_confidence_table.csv")
 
+#Changing CMO confidence values that are greater than 0.6 = 1 and less than 0.6 = 0. 
 confidence_table[, 2:7][confidence_table[, 2:7] >= 0.6] <- 1
 confidence_table[, 2:7][confidence_table[, 2:7] < 0.6] <- 0
 
+#Creating another confidence table that just has columns relating to the time points.  
 confidence_table2 <- confidence_table[, c(2,3,4,5,6,7,9)]
 
-vector <- as.numeric(as.matrix(confidence_table2))
 ```
 
 ```{r}
+#Checking that for a given cell, only one CMO is associated with it (i.e. the result should not be greater than 1)
 any(rowSums(confidence_table[,2:7])>1)
 sum(rowSums(confidence_table[,2:7])>1)
 ```
@@ -58,5 +65,174 @@ table(seurat_object$condition)
 ```{r}
 cells.keep <- WhichCells(seurat_object, expression = condition != "")
 length(cells.keep)
+seurat_object_subset <- subset(seurat_object, cells=cells.keep)
+
+#Saving the seurat object. Transfered this file to the data tab. 
+save(seurat_object_subset, file = "seurat_object_subset.RData")
+
+#Creating subsets of the altered Seurat object
+d00_object <- subset(seurat_object_subset, subset = condition == 'CMO301')
+d0_object <- subset(seurat_object_subset, subset = condition == 'CMO308')
+d7c_object. <- subset(seurat_object_subset, subset = condition == 'CMO311')
+d14c_object <- subset(seurat_object_subset, subset = condition == 'CMO312')
+d7m_object <- subset(seurat_object_subset, subset = condition == 'CMO309')
+d14m_object <- subset(seurat_object_subset, subset = condition == 'CMO310')
+
+```
+```{r}
+#mitochondrial reads cutoff
+hist(seurat_object_subset@meta.data$percent.mt, main="percent mt")
+
+metadata <- seurat_object_subset@meta.data
+
+count(metadata, metadata$percent.mt <= 5)
+#30946
+
+count(metadata, metadata$percent.mt <= 10)
+#31313
+
+count(metadata, metadata$percent.mt <= 15)
+#31365
+
+count(metadata, metadata$percent.mt <= 20)
+#31379
+
+count(metadata, metadata$percent.mt <= 25)
+#31385
+
+count(metadata, metadata$percent.mt <= 30)
+#31389
+
+count(metadata, metadata$percent.mt <= 35)
+#31393
+
+count(metadata, metadata$percent.mt <= 40)
+#31400
+
+count(metadata, metadata$percent.mt <= 45)
+#31401
+
+max(mito)
+count(metadata, metadata$percent.mt <= 84)
+#total amount of cells = 31404
+
+freq <- c(30946,31313,31365,31379,31385,31389,31393,31400,31401)
+cutoff <- c(5,10,15,20,25,30,35,40,45)
+plot(cutoff, freq, main="percent mt")
+
+#Determining nFeature RNA cutoff
+hist(seurat_object_subset@meta.data$nFeature_RNA, main="nFeature RNA")
+
+count(metadata, metadata$nFeature_RNA >=200 )
+#31403
+
+count(metadata, metadata$nFeature_RNA >=500 )
+#31016
+
+count(metadata, metadata$nFeature_RNA >=1000 )
+#27071
+
+count(metadata, metadata$nFeature_RNA >=2000 )
+#15087
+
+count(metadata, metadata$nFeature_RNA >=4000 )
+#2341
+
+count(metadata, metadata$nFeature_RNA >=6000 )
+#98
+
+count(metadata, metadata$nFeature_RNA >=8000 )
+#1
+
+#________________________________________________________
+
+count(metadata, metadata$nFeature_RNA <= 200 )
+#1
+
+count(metadata, metadata$nFeature_RNA <= 500 )
+#393
+
+count(metadata, metadata$nFeature_RNA <= 1000 )
+#4346
+
+count(metadata, metadata$nFeature_RNA <= 2000 )
+#16326
+
+count(metadata, metadata$nFeature_RNA <= 4000 )
+#29063
+
+count(metadata, metadata$nFeature_RNA <= 6000 )
+#31306
+
+count(metadata, metadata$nFeature_RNA <= 8000 )
+#31403
+
+count(metadata, metadata$nFeature_RNA <= 5000 )
+#30778
+
+count(metadata, metadata$nFeature_RNA <= 2500 )
+#21039
+
+count(metadata, metadata$nFeature_RNA <= 3500 )
+#27283
+
+freq_RNA_A <- c(31403,31016,27071,15087,2341,98,1)
+group_A <- c(200,500,1000,2000,4000,6000,8000)
+
+freq_RNA <- c(1,393,4346,16326,29063,31306,31403,30778,21039,27283)
+cutoff_RNA <- c(200,500,1000,2000,4000,6000,8000,5000,2500,3500)
+
+plot(cutoff_RNA, freq_RNA, main="nFeature RNA")
+plot(group_A, freq_RNA_A, main="nFeature RNA")
+
+VlnPlot(seurat_object_subset, features = c("nFeature_RNA"), ncol = 1)
+
+
+table(cut(metadata$nFeature_RNA,seq(100,6000,100)))
+hist(table(cut(metadata$nFeature_RNA,seq(100,6000,100))))
+
+
+```
+
+```{r}
+
+#UMIs per cell and how many cells you have
+#TOTAL NUMBER OF CELLS 31404
+#MEAN = 5332.54
+#3300-8500
+
+seurat_table <- seurat_revised@meta.data
+library(tibble)
+seurat_table <- tibble::rownames_to_column(seurat_table, "cell")
+
+VlnPlot(seurat_object_subset, features = c("nCount_RNA"))
+
+ggplot(seurat_table, aes(x=condition, y=nCount_RNA)) + 
+    geom_boxplot() + stat_summary(fun.y="mean")
+
+d00_object <- subset(seurat_table, subset = condition == 'D00')
+d0_object <- subset(seurat_table, subset = condition == 'D0')
+d7c_object <- subset(seurat_table, subset = condition == 'D7c')
+d14c_object <- subset(seurat_table, subset = condition == 'D14c')
+d7m_object <- subset(seurat_table, subset = condition == 'D7m')
+d14m_object <- subset(seurat_table, subset = condition == 'D14m')
+
+mean(seurat_table$nCount_RNA)
+mean(d00_object$nCount_RNA)
+mean(d0_object$nCount_RNA)
+mean(d7c_object$nCount_RNA)
+mean(d14c_object$nCount_RNA)
+mean(d7m_object$nCount_RNA)
+mean(d14m_object$nCount_RNA)
+
+
+
+ 
+
+
+
+
+
+
 ```
 

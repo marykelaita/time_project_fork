@@ -1,0 +1,66 @@
+---
+title: "Integration of Data"
+output: html_document
+date: '2022-10-22'
+---
+
+```{r setup, include=FALSE}
+dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
+dyn.load('/software/hdf5_hl-1.8.17-el7-x86_64/lib/libhdf5_hl.so.10')
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+```
+
+```{r}
+#Integration of Mesensphere data. Same process for integration of chondrocyte data and integration of mesensphere + chondrocyte data
+
+#Seurat objects being used
+d00_object <- subset(seurat_object_subset, subset = condition == 'CMO301')
+d0_object <- subset(seurat_object_subset, subset = condition == 'CMO308')
+d7m_object <- subset(seurat_object_subset, subset = condition == 'CMO309')
+d14m_object <- subset(seurat_object_subset, subset = condition == 'CMO310')
+
+#Creating a list of the Seurat objects
+mesen_list <- list(d00_object, d0_object, d7m_object, d14m_object)
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = mesen_list)
+
+cell.anchors <- FindIntegrationAnchors(object.list = mesen_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+
+# Visualization
+p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+p1 + p2
+
+DimPlot(cells.combined, reduction = "umap", split.by = "condition")
+
+#For a given cluster, checking which top n genes are differentially expressed compared to the other clusters
+cluster1.markers <- FindMarkers(cells.combined, ident.1 = 2, min.pct = 0.25)
+head(cluster1.markers, n = 10)
+
+cluster0.markers.1 <- FindMarkers(cells.combined, ident.1 = 5, ident.2 = c(1), min.pct = 0.25)
+head(cluster0.markers.1, n = 5)
+
+
+```
