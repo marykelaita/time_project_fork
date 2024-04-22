@@ -5,6 +5,7 @@ date: '2022-11-11'
 ---
 
 In order to use the Azimuth app through the internet the Seurat object has to be in the format of h5ad file. Do not have to separate out the time points into separate Seurat objects but code is included for reference. 
+
 ```{r}
 #How to have files be in the proper format so they can be uploaded into Azimuth app
 
