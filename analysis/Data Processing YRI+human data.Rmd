@@ -184,7 +184,7 @@ library(tibble)
 #                     "Chimp_Sample_in_Pool","Chimp_Individual_in_Pool","Chimp_Sex_in_Pool","Chimp_Age_in_Pool")
 
 batch <- c("GH_seurat_batch1_clean","GH_seurat_batch2_clean")
-sample_tot <- c("H5_D0","H5_D14c","H3_D7m","H3_D14c","H1_D00","H1_D0","H1_D7m","H1_D14m","H1_D7c","H1_D14c","H2_D00","H2_D0","H2_D7m","H2_D14m","H2_D7c","H2_D14c")
+sample_tot <- c("H5_D0","H5_D14c","H3_D7m","H3_D14c","H1_D00","H1_D0","H1_D7m","H1_D14m","H1_D7c","H1_D14m","H2_D00","H2_D0","H2_D7m","H2_D14m","H2_D7c","H2_D14c")
 
 ```
 
@@ -238,7 +238,7 @@ GH_seurat_batch1_clean_df <- GH_seurat_batch1_clean@meta.data
 
 #*********************************************************************************************************
 
-GH_seurat_batch2_clean_df
+GH_seurat_batch2_clean_df <- GH_seurat_batch2_clean@meta.data
 #Converting the actual first row into a column 
 GH_seurat_batch2_clean_df<- rownames_to_column(GH_seurat_batch2_clean_df, var = "barcode")
 #Getting rid of the -1 in the barcodes column
@@ -286,8 +286,11 @@ save(GH_seurat_batch2_clean, file = "GH_seurat_batch2_clean_assignments.RData")
 
 ```{r}
 
-GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
 GH_seurat_batch2_clean_human <- subset(GH_seurat_batch2_clean, subset = Species == 'Human')
+GH_seurat_batch2_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean_human, pattern = "^MT-")
+
+GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
+GH_seurat_batch1_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_clean_human, pattern = "^MT-")
 
 GH_seurat_batch2_clean_human_df <- GH_seurat_batch2_clean_human@meta.data
 
@@ -299,9 +302,28 @@ GH_seurat_batch2_clean_human_df %>%
   filter(condition == "H3_D7m") %>%
   nrow()
 
-filtered_table1 <- table1 %>%
-  anti_join(table2, by = "id")
-mean(filtered_table1$nfeature, na.rm = TRUE)
+filtered_table1 <- GH_seurat_batch1_clean_df %>%
+  anti_join(spp_batch1, by = "barcode")
+mean(filtered_table1$nFeature_RNA, na.rm = TRUE)
+
+filtered_table1 <- GH_seurat_batch2_clean_human_df%>%
+  anti_join(spp_batch2, by = "barcode")
+mean(filtered_table1$nFeature_RNA, na.rm = TRUE)
+
+filtered_table1  %>%
+  filter(condition == "H1_D14m") %>%
+  nrow()
+
+filtered_table1 %>%
+  filter(condition == "H5_D14c") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+#Converting the actual first row into a column 
+GH_seurat_batch2_clean_human_df<- rownames_to_column(GH_seurat_batch2_clean_human_df, var = "barcode")
+#Getting rid of the -1 in the barcodes column
+GH_seurat_batch2_clean_human_df$barcode <- gsub("-1", "", GH_seurat_batch2_clean_human_df$barcode)
+
+
 
 GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
 GH_seurat_batch1_clean_human_df <- GH_seurat_batch1_clean_human@meta.data
@@ -320,11 +342,11 @@ GH_seurat_batch1_clean_human_df<- rownames_to_column(GH_seurat_batch1_clean_huma
 #Getting rid of the -1 in the barcodes column
 GH_seurat_batch1_clean_human_df$barcode <- gsub("-1", "", GH_seurat_batch1_clean_human_df$barcode)
 
-filtered_table1 <- GH_seurat_batch1_clean_human_df %>%
-  anti_join(spp_batch1, by = "barcode")
+filtered_table1 <- GH_seurat_batch2_clean_human_df %>%
+  anti_join(spp_batch2, by = "barcode")
 
 filtered_table1 %>%
-  filter(condition == "H1_D00") %>%
+  filter(condition == "H5_D14c") %>%
   summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
 
 filtered_table1 %>%
@@ -335,6 +357,8 @@ filtered_table1 %>%
 GH_seurat_batch1_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_clean_human, pattern = "^MT-")
 
 GH_seurat_batch2_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean_human, pattern = "^MT-")
+
+GH_seurat_batch2_clean[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean, pattern = "^MT-")
 
 table_1$new_column <- sub("_(.*)", "", table_1$condition)
 table_2$new_column <- sub("_(.*)", "", table_2$condition)
@@ -459,25 +483,55 @@ hist(na_rows$n_FeatureRNA)
 
 library(data.table)
 
-
-
 # Print the result
 print(average_ncount_H1_D7m)
 
 ```
 
-```{r load data and packages}
+```{r}
+
+seurat_revised_df <- seurat_revised@meta.data
+
+seurat_revised_df %>%
+  filter(condition == "D00" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D0" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D7m" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D14m" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D7c" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D14c" & donor_id == "NA19160") %>%
+  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+
+seurat_revised_df %>%
+  filter(condition == "D00"  & donor_id == "NA18856") %>%
+  nrow()
+
+
+```
+
+```{r}
+
+
+merged_data <- merge(seurat_revised, y = c(GH_seurat_batch2_clean_human, GH_seurat_batch1_clean_human), project = "merged_data")
+
 library(fastTopics)
 library(Seurat)
 library(Matrix)
 
-merged_data <- merge(GH_seurat_batch2_clean_human, y = c(GH_seurat_batch1_clean_human, seurat_revised), project = "Combined.common")
-dim(merged_data)
-
-saveRDS(merged_data, "/project2/gilad/emaan/time_project/data/merged_data.rds")
-
-#load data (stored in a seurat object)
-merged_data <- readRDS("/project2/gilad/emaan/time_project/data/merged_data.rds")
 
 #Extract raw count matrix from seurat object and get it in correct format for fastTopics
 #need to fit the model to the count data (unintegrated)
@@ -487,19 +541,12 @@ raw_counts <- raw_counts[rowSums(raw_counts > 0) > 0,]
 #get into correct orientation (barcodes x features)
 raw_counts <- t(raw_counts)
 dim(raw_counts)
-```
 
-# Use fastTopics functions to fit a topic model k=3 or k=6 to the data
-
-```{r fit topic model}
-library(fastTopics)
-library(Seurat)
-library(Matrix)
 
 if (file.exists("output/topicModel_k=3.rds")) {
   fit <- readRDS("output/topicModel_k=3.rds")
 } else {
-  fit <- fit_poisson_nmf(raw_counts,k = 3,numiter = 100)
+  fit <- fit_poisson_nmf(raw_counts,k = 3,numiter = 150)
   saveRDS(fit, "output/topicModel_k=3.rds")
 }
 
@@ -510,39 +557,26 @@ weights <- sweep(l, MARGIN = 2, colSums(f), `*`)
 scale <- rowSums(weights)
 weights <- weights / scale
 topics <- f / colSums(f) # add up to 1
-```
 
-# Heatmap
 
-Here we select a few marker genes to represent iPSCs, MSCs, Hepatocytes, and Chondrocytes and visualize the relative loadings of these marker genes in each of the 7 fitted topics using a scaled heatmap.
-
-```{r plot correlations external}
 library(stringr)
-library(tidyverse)
 library(pheatmap)
 library(dummies)
-
+library(tidyverse)
 
 #selected markers for different cell types
 MSC_markers <- c("THY1", "NT5E", "ENG")
 Chondrocyte_markers <- c("COL2A1", "ACAN", "SOX9", "SOX5", "SOX6", "COL9A1")
-Hepatocyte_markers <- c("ALB")
 iPSC_markers <- c("POU5F1", "SOX2", "NANOG")
-markers <- c(iPSC_markers, Hepatocyte_markers, Chondrocyte_markers, MSC_markers)
+markers <- c(iPSC_markers, Chondrocyte_markers, MSC_markers)
 #annotate the markers with the cell type they represent
-markers_description <- data.frame(marker_type = c(rep("iPSC", 3), rep("Hepatocyte", 1), rep("Chondrocyte", 6), rep("MSC", 3)))
+markers_description <- data.frame(marker_type = c(rep("iPSC", 3), rep("Chondrocyte", 6), rep("MSC", 3)))
 rownames(markers_description) <- markers
 
 #plot heatmap of relative expression of marker genes in each topic
 topics_markers <- topics[markers,]
 pheatmap(topics_markers, cluster_cols = FALSE, cluster_rows = FALSE, annotation_row = markers_description, scale = "row")
-```
 
-# Structure Plot
-
-The structure plot represents the topic membership proportions of individual cells in each of the cell types using stacked bar plots.
-
-```{r structure plot external}
 #get labels of cells (cell type) and reorder to group them
 sample <- as.data.frame(merged_data@meta.data$Cell.Type)
 sample_labels <- sample %>% 
@@ -552,33 +586,8 @@ sample <- sample_labels %>%
      dplyr::arrange(Cell.Type)
 
 
-set.seed(1)
-topic_colors <- c("gold", "grey", "firebrick", "forestgreen", "royalblue", "turquoise", "salmon")
-topics_order <- c(2, 3, 1, 7, 5, 4, 6)
-rows_keep <- sort(c(sample(which(sample_labels$Cell.Type == "Hepatocyte"), 800),
-               sample(which(sample_labels$Cell.Type == "iPSC"), 800),
-               sample(which(sample_labels$Cell.Type == "iPSC-MSC"), 800),
-               which(sample_labels$Cell.Type == "iPSC-Chondrocyte"),
-               sample(which(sample_labels$Cell.Type == "iPSC-Chondro_GAH"), 800),
-               sample(which(sample_labels$Cell.Type == "iPSC-Osteo"), 800),
-               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d7"), 800),
-               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d14"), 800),
-               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d28"), 800),
-               sample(which(sample_labels$Cell.Type == "Wu_chondrogenic_pellet_d42"), 800),
-               sample(which(sample_labels$Cell.Type == "chou_chondrocyte"), 800),
-               sample(which(sample_labels$Cell.Type == "ji_chondrocyte"), 800)))
-structure_plot <- structure_plot(dplyr::select(poisson2multinom(fit),loadings = rows_keep),
-                      grouping = factor(sample_labels[rows_keep,"Cell.Type"], 
-                                        c("Hepatocyte", "iPSC", "iPSC-MSC", 
-                                          "iPSC-Osteo", "iPSC-Chondro_GAH",
-                                          "iPSC-Chondrocyte", "Wu_chondrogenic_pellet_d7", "Wu_chondrogenic_pellet_d14", "Wu_chondrogenic_pellet_d28", "Wu_chondrogenic_pellet_d42", "chou_chondrocyte", "ji_chondrocyte")),
-                      topics = topics_order,
-                      colors = topic_colors[topics_order],
-                      perplexity = c(50),
-                      n = 6043,gap = 100,num_threads = 4,verbose = FALSE)
-print(structure_plot)
+
+
 ```
-
-
 
 
