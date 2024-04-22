@@ -4,6 +4,9 @@ output: html_document
 date: '2022-10-22'
 ---
 
+Data being pulled is from the /project2/gilad/emaan/prroject folder. This was the initial data before extra sequencing was done. Keeping this code just for reference. 
+
+
 ```{r setup, include=FALSE}
 
 dyn.load('/software/geos-3.7.0-el7-x86_64/lib/libgeos_c.so.1')
