@@ -26,7 +26,12 @@ library(fastTopics)
 library(Seurat)
 library(Matrix)
 
-merged_data <- merge(GH_seurat_batch2_clean_human, y = c(GH_seurat_batch1_clean_human, seurat_revised), project = "Combined.common")
+
+colnames(wu_combined@meta.data)[4] <- "condition"
+
+metadata <- merged_data@meta.data
+
+merged_data <- merge(GH_seurat_batch1_human, y = c(GH_seurat_batch2_human, seurat_final_2023,wu_combined))
 dim(merged_data)
 
 saveRDS(merged_data, "/project2/gilad/emaan/time_project/data/merged_data.rds")
@@ -57,6 +62,9 @@ if (file.exists("output/topicModel_k=3.rds")) {
   fit <- fit_poisson_nmf(raw_counts,k = 3,numiter = 100)
   saveRDS(fit, "output/topicModel_k=3.rds")
 }
+
+
+fit <- readRDS("/project2/gilad/emaan/time_project/data/topicModel_k=3_wu.rds")
 
 #compute weights and topics (rescale each of l and f to add up to 1)
 l <- fit$L
@@ -98,6 +106,52 @@ pheatmap(topics_markers, cluster_cols = FALSE, cluster_rows = FALSE, annotation_
 The structure plot represents the topic membership proportions of individual cells in each of the cell types using stacked bar plots.
 
 ```{r structure plot external}
+merged_data <- readRDS("/project2/gilad/emaan/time_project/data/merged_data.rds")
+```
+
+```{r}
+#get labels of cells (cell type) and reorder to group them
+
+# Extracting characters after the underscore in the 'Cell.Type' column
+merged_data@meta.data$Cell.Type <- sapply(strsplit(merged_data@meta.data$condition, "_"), function(x) x[length(x)])
+
+sample <- as.data.frame(merged_data@meta.data$Cell.Type)
+sample_labels <- sample %>% 
+     dplyr::transmute(Cell.Type = stringr::word(`merged_data@meta.data$Cell.Type`, start = 1))
+rownames(sample_labels) <- rownames(merged_data@meta.data)
+sample <- sample_labels %>% 
+     dplyr::arrange(Cell.Type)
+
+set.seed(1)
+topic_colors <- c("gold", "grey", "firebrick")
+topics_order <- c(1, 2,3)
+rows_keep <- sort(c(sample(which(sample_labels$Cell.Type == "D00")),
+               sample(which(sample_labels$Cell.Type == "D0")),
+               sample(which(sample_labels$Cell.Type == "D7c")),
+               sample(which(sample_labels$Cell.Type == "D14c")),
+               sample(which(sample_labels$Cell.Type == "D7m")),
+               sample(which(sample_labels$Cell.Type == "D14m")),
+               sample(which(sample_labels$Cell.Type == "d7")),
+               sample(which(sample_labels$Cell.Type == "d14")),
+               sample(which(sample_labels$Cell.Type == "d28")),
+               sample(which(sample_labels$Cell.Type == "d42"))))
+               
+structure_plot <- structure_plot(dplyr::select(poisson2multinom(fit),loadings = rows_keep),
+                      grouping = factor(sample_labels[rows_keep,"Cell.Type"], 
+                                        c("D00", "D0", "D7c", 
+                                          "D14c","D7m","D14m","d7","d14","d28","d42")),
+                      topics = topics_order,
+                      colors = topic_colors[topics_order],
+                      perplexity = c(50),
+                      n = 6043,gap = 100,num_threads = 4,verbose = FALSE)
+print(structure_plot)
+```
+
+
+
+
+
+```{r structure plot external}
 #get labels of cells (cell type) and reorder to group them
 sample <- as.data.frame(merged_data@meta.data$Cell.Type)
 sample_labels <- sample %>% 
@@ -132,5 +186,6 @@ structure_plot <- structure_plot(dplyr::select(poisson2multinom(fit),loadings = 
                       perplexity = c(50),
                       n = 6043,gap = 100,num_threads = 4,verbose = FALSE)
 print(structure_plot)
+pdf("/project2/gilad/emaan/structure_plot.pdf", width = 10, height = 8)
 ```
 
