@@ -4,6 +4,7 @@ output: html_document
 date: '2023-03-22'
 ---
 
+Subsetting just the chondrogenic data and analyzing (integration + comparing to Wu data)
 
 ```{r}
 seurat_chondro <- subset(seurat_revised, subset = condition == 'D00' | condition == 'D0' | condition == 'D7c' | condition == 'D14c')
@@ -110,14 +111,8 @@ wu_combined <- ScaleData(wu_combined, features = all.genes)
 wu_combined  <- RunPCA(wu_combined , features = VariableFeatures(object = wu_combined ))
 ElbowPlot(wu_combined)
 
-
 wu_combined <- FindNeighbors(wu_combined, dims = 1:30)
 wu_combined1 <- FindClusters(wu_combined, resolution = 0.5)
-
-
-
-
-
 
 wu_combined1 <- RunUMAP(wu_combined1, dims = 1:30)
 DimPlot(wu_combined1, reduction = "umap",group.by = "Cell.Type")
