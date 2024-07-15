@@ -4,9 +4,9 @@ output: html_document
 date: '2023-02-03'
 ---
 
-Data being pulled is from the /project2/gilad/emaan/chondro_rev folder. There is another folder named /project2/gilad/emaan/chondro but data from that folder is not being used (since there was an issue with the bam files not merging/taking to long). Vireo was also only run on the chondro_rev folder. 
+Data being pulled is from the /project/gilad/emaan/chondro_rev folder. There is another folder named /project/gilad/emaan/chondro but data from that folder is not being used (since there was an issue with the bam files not merging/taking to long). Vireo was also only run on the chondro_rev folder. 
 
-Data from only the first sequencing run is in the /project2/gilad/emaan/project folder.
+Data from only the first sequencing run is in the /project/gilad/emaan/project folder. Initial analysis for this data is in /project/gilad/emaan/time_project/analysis/Initial_Data_Proccessing.Rmd
 
 Seurat object being loaded in has a 70% threshhold for assigning CMOs to cell types. 
 ```{r setup, include=FALSE}
@@ -51,14 +51,6 @@ for (cmo in cmo.names) {
   seurat_object$condition[w] <- cmo
 }
 
-#prob_id <- confidence_table$Assignment
-#names(prob_id) = confidence_table$Barcode
-#new_seurat <- AddMetaData(object=seurat_object, metadata = prob_id,   col.name ='prob_id')
-#seurat_df_3= new_seurat@meta.data
-
-#donor_id <- vireo_final$donor_id
-#names(donor_id) = vireo_final$cell
-#new_seurat <- AddMetaData(object=seurat_object, metadata = donor_id,   col.name ='donor_id')
 
 #Changing names from CMO to condition
 seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO301")] <- "D00"
@@ -70,7 +62,7 @@ seurat_object@meta.data$condition[which(seurat_object@meta.data$condition=="CMO3
 
 ```
 
-Adding information from vireo. Have to first combine the vireo outputs for each condition. Only including donor ID and max probability. Removing any rows that do not have a CMO assigned to them. Rows that do not have CMO assignment correspond with rows that do not have individual assignment. Final seurat object is saved as seurat_revised. 
+Adding information from vireo. Have to first combine the vireo outputs for each condition. Only including donor ID and max probability. Removing any rows that do not have a CMO assigned to them. Rows that do not have CMO assignment correspond with rows that do not have individual assignment. 
 ```{r}
 #Adding in information from vireo. Have to first combine the vireo outputs for each condition. 
 
@@ -106,48 +98,59 @@ seurat_revised <- subset(seurat_final, subset = condition != "")
 seurat_r_df= seurat_revised@meta.data
 
 save(seurat_revised, file = "seurat_revised_2023.RData")
+
+#removing any cells that are categorized as doublets and unassigned 
+seurat_final_2023<- subset (seurat_revised, subset = donor_id != "doublet")
+seurat_final_2023<- subset (seurat_final_2023, subset = donor_id != "unassigned")
+
+seurat_final_2023_df= seurat_final_2023@meta.data
+
+save(seurat_final_2023, file = "seurat_final_2023.RData")
+
 ```
-The rest of the script if related to QC metrics and adding any additional information. This is the end for having the necessary seurat file for downstream processing 
+Seurat object with doublets and unnassigned values removed is seurat_final_2023.RData in the /project/gilad/emaan/time_project/data. Mt values still have to be removed. When loading in, it will show up as seurat_final_2023.  
+
+The rest of the script is related to QC metrics and adding any additional information. This is the end for having the necessary seurat file for downstream processing.
+__________________________________________________________________________________________
 
 
 QC Metrics: determining the nFeature RNA range and percent mitochondria DNA. Saved seurat object with % mitochondrial DNA included and nFeature RNA cutoffs. 
 ```{r}
-seurat_revised[["percent.mt"]] <- PercentageFeatureSet(seurat_revised, pattern = "^MT-")
-hist(seurat_revised$nFeature_RNA)
-hist(seurat_revised$nCount_RNA)
-hist(seurat_revised$percent.mt)
+seurat_final_2023[["percent.mt"]] <- PercentageFeatureSet(seurat_final_2023, pattern = "^MT-")
+hist(seurat_final_2023$nFeature_RNA)
+hist(seurat_final_2023$nCount_RNA)
+hist(seurat_final_2023$percent.mt)
 
 mt_cutoff <- c(1,2,3,4,5,6,7,8,9,10, 15, 20, 25, 30, 35, 40, 45)
 mt_count <- c()
 for (i in mt_cutoff) {
-  mt_count <- c(mt_count, sum(seurat_revised@meta.data$percent.mt <= i))
+  mt_count <- c(mt_count, sum(seurat_final_2023@meta.data$percent.mt <= i))
 }
 mt_table <- data.frame(mt_cutoff, mt_count)
-write.csv(mt_table, file="mt_table.csv")
-
 plot(mt_cutoff, mt_count, main="mt cutoff")
 
 # nFeature RNA
 rna_cutoff <- c(100,200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000)
 rna_count <- c()
 for (i in rna_cutoff) {
-  rna_count <- c(rna_count, sum(seurat_revised@meta.data$nFeature_RNA >= i))
+  rna_count <- c(rna_count, sum(seurat_final_2023@meta.data$nFeature_RNA >= i))
 }
 rna_table <- data.frame(rna_cutoff, rna_count)
-write.csv(rna_table, file="rna_table.csv")
-
 plot(rna_cutoff, rna_count, main="nFeature RNA")
 
 #Violin plots for cutoff
-VlnPlot(seurat_revised, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(seurat_final_2023, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 
 #Adding the cutoffs in the seurat object
-seurat_revised<- subset(seurat_revised, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
-save(seurat_revised, file = "seurat_revised.RData")
+seurat_QC_2024 <- subset(seurat_final_2023, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+save(seurat_QC_2024, file = "seurat_QC_2024.RData")
 ```
+Seurat object with filtered percent.mt and nFeature_RNA saved as seruat_QC_2024 in the /project/gilad/emaan/time_project/data. When loading in, it will show up as seurat_QC_2024. 
 
-Workflow for integration across individuals. Using the saved seurat object that has % mitochondrial DNA added and nFeature RNA cutoff range. 
+
 ```{r}
+#Workflow for integration across individuals. Using the saved seurat object that has % mitochondrial DNA added and nFeature RNA cutoff range. 
+
 library(dplyr)
 library(Seurat)
 library(patchwork)
@@ -243,6 +246,7 @@ p1 = DimPlot(pilot.humans, reduction = "new.UMAP", group.by = "labels", label = 
 p1+p2
 ```
 
+Creating Wu chondrogenic dataset. Using code from Anthony. 
 ```{r}
 
 library(Matrix)
@@ -289,13 +293,14 @@ wu_d42_seurat <- Seurat::AddMetaData(wu_d42_seurat, "Wu_chondrogenic_pellet_d42"
 wu_combined_rev <- merge(wu_d7_seurat, y = c(wu_d14_seurat, wu_d28_seurat, wu_d42_seurat), project = "Combined.common")
 
 wu_combined_rev[["percent.mt"]] <- PercentageFeatureSet(wu_combined_rev, pattern = "^MT-")
-wu_combined_rev <- subset(wu_combined_rev, subset = percent.mt < 5)
+wu_combined_rev <- subset(wu_combined_rev, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
 dim(wu_combined_rev)
 
-save(wu_combined_rev, file = "wu_combined_rev.RData")
+save(wu_combined_rev, file = "/project2/gilad/emaan/time_project/data/wu_combined_rev.RData")
 
 ```
 
+Integrating EM dataset with Wu dataset. 
 ```{r}
 #Seurat objects being used
 seurat_chondro<- subset(seurat_chondro, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
