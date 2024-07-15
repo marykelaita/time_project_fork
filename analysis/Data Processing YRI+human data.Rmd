@@ -4,6 +4,8 @@ output: html_document
 date: '2023-07-06'
 ---
 
+This code goes through the data processing of GH batch 1 and batch 2 data. 
+
 Batch 2 Data Processing Part 1
 ```{r}
 
@@ -41,7 +43,6 @@ for (cmo in cmo.names) {
   w <- which(colnames(GH_seurat_batch_2) %in% cell.idents[[cmo]])
 GH_seurat_batch_2$condition[w] <- cmo
 }
-
 
 #Changing names from CMO to condition
 GH_seurat_batch_2@meta.data$condition[which(GH_seurat_batch_2@meta.data$condition=="CMO301")] <- "H5_D0"
@@ -113,50 +114,21 @@ GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$conditio
 GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO311")] <- "H2_D7c"
 GH_seurat_batch_1@meta.data$condition[which(GH_seurat_batch_1@meta.data$condition=="CMO312")] <- "H2_D14c"
 
-library(dplyr)
-
-# Assuming your data frame is called your_data_frame
-GH_seurat_batch1_clean_df %>%
-  filter(condition == "H1_D00") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-GH_seurat_batch1_clean_df %>%
-  filter(condition == "H2_D14c") %>%
-  nrow()
-
-GH_seurat_batch1_df <-  GH_seurat_batch_1@meta.data
-
 GH_seurat_batch1_clean <- subset(GH_seurat_batch_1, subset = condition != "")
-GH_seurat_batch1_clean_df <-  GH_seurat_batch1_clean@meta.data
+GH_seurat_batch1_clean_df <- GH_seurat_batch1_clean@meta.data
 
-#Checking to make sure that we did not lose any cells in the process. The number of cells assigned to each CMO here should be the same as lines #30-35
+#Checking to make sure that we did not lose any cells in the process. The number of cells assigned to each CMO here should be the same as lines #87-98
 value_counts <- table(GH_seurat_batch1_clean_df$condition)
 print(value_counts)
 
 save(GH_seurat_batch1_clean, file = "GH_seurat_batch1_clean.RData")
 ```
 
-File for species assignment data
+File for species assignment data. Species-specific assignments were determined using human-chimpanzee genome combination with ortho-exon annotation.
 ```{r}
 
-spp <- readRDS("/project2/gilad/ghousman/chondro-human-chimp/hc-chondro-time/chondro-time-evo/data/06_spp_assign.rds")
+spp <- readRDS("/project/gilad/ghousman/chondro-human-chimp/hc-chondro-time/chondro-time-evo/data/06_spp_assign.rds")
 
-```
-
-### Processing count matrices
-
-Compile 10X data using seurat.
-
-Each dataset being evaluated comprises gene count data that were seperately calculated using both the hg38 human genome and the panTro6 chimpanzee genome, as well as the corresponding ortho-exon annotation in cellranger. Species-specific assignments were determined using human-chimpanzee genome combination with ortho-exon annotation.
-
-```{bash, eval=FALSE, echo=TRUE}
-#If you want to run the code in terminal 
-
-##easties to run these scripts on the cluster
-#cd /project2/gilad/ghousman/skeletal-human-chimp/human-chimp-skeletal-scRNA
-#sinteractive --mem=24g --time=12:00:00 --partition=broadwl
-#module load R/4.2.0
-#R
 ```
 
 ```{r load libraries, eval=FALSE, echo=TRUE}
@@ -172,227 +144,284 @@ library(tibble)
 
 ```
 
-```{r load batch information, eval=FALSE, echo=TRUE}
 
-#Load batch info
-
-#batch <- read.csv(file='./data/scrna-batch.csv', header=TRUE, sep=",")
-
-#batch <- as.data.frame(t(c("1-C","1","Chondrocyte","GHO-3","H1-C","H23555","M",22,"C1-C","C8861","M",16)))
-#colnames(batch) <- c("Pooled_Sample_Name","Batch","Cell_Type","Sample_Name_at_Core",
-#                     "Human_Sample_in_Pool","Human_Individual_in_Pool","Human_Sex_in_Pool","Human_Age_in_Pool",
-#                     "Chimp_Sample_in_Pool","Chimp_Individual_in_Pool","Chimp_Sex_in_Pool","Chimp_Age_in_Pool")
-
-batch <- c("GH_seurat_batch1_clean","GH_seurat_batch2_clean")
-sample_tot <- c("H5_D0","H5_D14c","H3_D7m","H3_D14c","H1_D00","H1_D0","H1_D7m","H1_D14m","H1_D7c","H1_D14m","H2_D00","H2_D0","H2_D7m","H2_D14m","H2_D7c","H2_D14c")
-
-```
-
-Adding species assignment to both batches and then will subset the seurat object to only include humans
+Adding species assignment to both batches and then will subset the seurat object to only include humans. The final objects are saved as GH_seurat_batch1_human_final_2024 and GH_seurat_batch2_human_final_2024 in project/gilad/emaan/time_project/data/processing_and_QC. These objects contain only human cells (no mulitplets). They do not have any cutoffs implemented and the mt data has to be added to the metadata. Note the object will appear as GH_seurat_batch1_sub and GH_seurat_batch2_sub. 
 ```{r}
-GH_seurat_batch1_clean_df 
+load("/project/gilad/emaan/time_project/data/GH_seurat_batch1_clean.RData")
+
+GH_seurat_batch1_clean_df <- GH_seurat_batch1_clean@meta.data
+
 #Converting the actual first row into a column 
 GH_seurat_batch1_clean_df<- rownames_to_column(GH_seurat_batch1_clean_df, var = "barcode")
+
 #Getting rid of the -1 in the barcodes column
 GH_seurat_batch1_clean_df$barcode <- gsub("-1", "", GH_seurat_batch1_clean_df$barcode)
 
 #Subsetting spp table so it only has batch1 information
 spp_batch1 <- spp[spp$batch == 'batch1', ]
 
-# Find common barcodes 
-common_barcodes <- spp_batch1$barcode[spp_batch1$barcode %in% GH_seurat_batch1_clean_df$barcode]
-
 library(dplyr)
-result_df <- anti_join(GH_seurat_batch1_clean_df, spp_batch1, by = "barcode") %>%
-  select(spp_batch1, "NEWcall")
-mean(result$nFeature_RNA)
 
-#13,560 common barcodes but total number of cells is 15,133 so we are missing 1573 barcodes. These 1573 barcodes need to be added to the spp_batch1_subset table even if they do not have a species assignment since they are not in the table in the first place. 
+merged_df <- left_join(GH_seurat_batch1_clean_df, spp_batch1, by = "barcode")
+GH_seurat_batch1_clean_df$species <- merged_df$call
 
-spp_batch1_subset <- spp_batch1[spp_batch1$barcode %in% common_barcodes, ]
+species_assignment <- GH_seurat_batch1_clean_df$species
+names(species_assignment) = GH_seurat_batch1_clean_df$barcode
 
-non_matching_barcodes <- GH_seurat_batch1_clean_df %>%
-  anti_join(spp_batch1, by = "barcode")
+GH_seurat_batch1_clean <- AddMetaData(object=GH_seurat_batch1_clean, metadata = species_assignment, col.name ='species')
 
-non_matching_barcodes <- non_matching_barcodes %>%
+#Remove any multiplet values and NA values. And then subset to only human cells. 
+GH_seurat_batch1_sub<- subset (GH_seurat_batch1_clean, subset = species != "Multiplet")
+GH_seurat_batch1_sub <- subset(GH_seurat_batch1_clean, subset = species != "")
+GH_seurat_batch1_sub <- subset(GH_seurat_batch1_clean, subset = species == "Human")
+
+GH_seurat_batch1_sub_df <- GH_seurat_batch1_sub@meta.data
+GH_seurat_batch1_sub_df <- GH_seurat_batch1_sub_df %>%
   mutate(
-    ChimpOrthoV2 = NA,  # Create a new column with NA values
-    HumanOrthoV2 = NA,  # Create a new column with NA values
-    call = NA,         # Create a new column with NA values
-    Collection.Name = NA,  # Create a new column with NA values
-    TotalOrthoV2 = NA,    # Create a new column with NA values
-    RatioOrthoV2 = NA,    # Create a new column with NA values
-    NEWcall = NA,         # Create a new column with NA values
-    batch = NA
+    full_condition = condition,
+    condition = sub("^[^_]*_", "", condition),
+    donor_ID = sub("_.*", "", full_condition)
   ) %>%
-  select(-orig.ident, -nCount_RNA, -nFeature_RNA, -condition)
+  select(orig.ident, nCount_RNA, nFeature_RNA, species, full_condition, condition, donor_ID)
 
-spp_batch1_subset_full <- rbind(spp_batch1_subset, non_matching_barcodes)
+GH_seurat_batch1_sub <- AddMetaData(GH_seurat_batch1_sub, GH_seurat_batch1_sub_df)
+save(GH_seurat_batch1_sub, file = "GH_seurat_batch1_human_final_2024.RData")
 
-species_assignment <- spp_batch1_subset_full$NEWcall
-names(species_assignment) = spp_batch1_subset$barcode
-GH_seurat_batch1_clean <- AddMetaData(object=GH_seurat_batch1_clean, metadata = species_assignment, col.name ='Species')
 
-save(GH_seurat_batch1_clean, file = "GH_seurat_batch1_clean_assignments_rev.RData")
-GH_seurat_batch1_clean_df <- GH_seurat_batch1_clean@meta.data
-
-#*********************************************************************************************************
+#**********************************************************************************************
+load("/project/gilad/emaan/time_project/data/processing_and_QC/GH_seurat_batch2_clean.RData")
 
 GH_seurat_batch2_clean_df <- GH_seurat_batch2_clean@meta.data
+
 #Converting the actual first row into a column 
 GH_seurat_batch2_clean_df<- rownames_to_column(GH_seurat_batch2_clean_df, var = "barcode")
+
 #Getting rid of the -1 in the barcodes column
 GH_seurat_batch2_clean_df$barcode <- gsub("-1", "", GH_seurat_batch2_clean_df$barcode)
 
 #Subsetting spp table so it only has batch1 information
 spp_batch2 <- spp[spp$batch == 'batch2', ]
 
-# Find common barcodes using the %in% operator
-common_barcodes_2 <- spp_batch2$barcode[spp_batch2$barcode %in% GH_seurat_batch2_clean_df$barcode]
-#x common barcodes but total number of cells is y so we are missing z barcodes. These z barcodes need to be added to the spp_batch2_subset table even if they do not have a species assignment since they are not in the table in the first place.
+merged_df <- left_join(GH_seurat_batch2_clean_df, spp_batch2, by = "barcode")
+GH_seurat_batch2_clean_df$species <- merged_df$call
 
-spp_batch2_subset <- spp_batch2[spp_batch2$barcode %in% common_barcodes_2, ]
+species_assignment <- GH_seurat_batch2_clean_df$species
+names(species_assignment) = GH_seurat_batch2_clean_df$barcode
 
-non_matching_barcodes_2 <- GH_seurat_batch2_clean_df %>%
-  anti_join(spp_batch2, by = "barcode")
+GH_seurat_batch2_clean <- AddMetaData(object=GH_seurat_batch2_clean, metadata = species_assignment, col.name ='species')
 
-non_matching_barcodes_2 <- non_matching_barcodes_2 %>%
+#Remove any multiplet values and NA values. And then subset to only human cells. 
+GH_seurat_batch2_sub<- subset (GH_seurat_batch2_clean, subset = species != "Multiplet")
+GH_seurat_batch2_sub <- subset(GH_seurat_batch2_clean, subset = species != "")
+GH_seurat_batch2_sub <- subset(GH_seurat_batch2_clean, subset = species == "Human")
+
+GH_seurat_batch2_sub_df <- GH_seurat_batch2_sub@meta.data
+GH_seurat_batch2_sub_df <- GH_seurat_batch2_sub_df %>%
   mutate(
-    ChimpOrthoV2 = NA,  # Create a new column with NA values
-    HumanOrthoV2 = NA,  # Create a new column with NA values
-    call = NA,         # Create a new column with NA values
-    Collection.Name = NA,  # Create a new column with NA values
-    TotalOrthoV2 = NA,    # Create a new column with NA values
-    RatioOrthoV2 = NA,    # Create a new column with NA values
-    NEWcall = NA,         # Create a new column with NA values
-    batch = NA
+    full_condition = condition,
+    condition = sub("^[^_]*_", "", condition),
+    donor_ID = sub("_.*", "", full_condition)
   ) %>%
-  select(-orig.ident, -nCount_RNA, -nFeature_RNA, -condition)
+  select(orig.ident, nCount_RNA, nFeature_RNA, full_condition, condition, donor_id)
 
-spp_batch2_subset_full <- rbind(spp_batch2_subset, non_matching_barcodes_2)
+GH_seurat_batch2_sub <- AddMetaData(GH_seurat_batch2_sub, GH_seurat_batch2_sub_df)
 
-
-species_assignment <- spp_batch2_subset_full$NEWcall
-names(species_assignment) = spp_batch2_subset$barcode
-GH_seurat_batch2_clean <- AddMetaData(object=GH_seurat_batch2_clean, metadata = species_assignment, col.name ='Species')
-
-save(GH_seurat_batch2_clean, file = "GH_seurat_batch2_clean_assignments.RData")
-
-
-
-#******************************************************************************************************
+save(GH_seurat_batch2_sub, file = "GH_seurat_batch2_human_final_2024.RData")
 
 ```
 
+QC Metrics: determining the nFeature RNA range and percent mitochondria DNA. Saved seurat object with % mitochondrial DNA included and nFeature RNA cutoffs.Final objects saved as GH_batch1_QC and GH_batch2_QC in /project/gilad/emaan/time_project/data 
+```{r}
+GH_seurat_batch1_sub[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_sub, pattern = "^MT-")
+GH_seurat_batch2_sub[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_sub, pattern = "^MT-")
+
+hist(GH_seurat_batch1_sub$nFeature_RNA)
+hist(GH_seurat_batch1_sub$nCount_RNA)
+hist(GH_seurat_batch1_sub$percent.mt)
+
+mt_cutoff <- c(1,2,3,4,5,6,7,8,9,10, 15, 20, 25, 30, 35, 40, 45)
+mt_count <- c()
+for (i in mt_cutoff) {
+  mt_count <- c(mt_count, sum(GH_seurat_batch1_sub@meta.data$percent.mt <= i))
+}
+mt_table <- data.frame(mt_cutoff, mt_count)
+plot(mt_cutoff, mt_count, main="mt cutoff")
+
+mt_cutoff <- c(1,2,3,4,5,6,7,8,9,10, 15, 20, 25, 30, 35, 40, 45)
+mt_count <- c()
+for (i in mt_cutoff) {
+  mt_count <- c(mt_count, sum(GH_seurat_batch2_sub@meta.data$percent.mt <= i))
+}
+mt_table <- data.frame(mt_cutoff, mt_count)
+plot(mt_cutoff, mt_count, main="mt cutoff")
+
+# nFeature RNA
+rna_cutoff <- c(100,200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000)
+rna_count <- c()
+for (i in rna_cutoff) {
+  rna_count <- c(rna_count, sum(GH_seurat_batch1_sub@meta.data$nFeature_RNA >= i))
+}
+rna_table <- data.frame(rna_cutoff, rna_count)
+plot(rna_cutoff, rna_count, main="nFeature RNA")
+
+rna_cutoff <- c(100,200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000)
+rna_count <- c()
+for (i in rna_cutoff) {
+  rna_count <- c(rna_count, sum(GH_seurat_batch2_sub@meta.data$nFeature_RNA >= i))
+}
+rna_table <- data.frame(rna_cutoff, rna_count)
+plot(rna_cutoff, rna_count, main="nFeature RNA")
+
+#Violin plots for cutoff
+VlnPlot(GH_seurat_batch1_sub, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(GH_seurat_batch2_sub, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+#Adding the cutoffs in the seurat object
+GH_batch1_QC<- subset(GH_seurat_batch1_sub, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+save(GH_batch1_QC, file = "GH_batch1_QC.RData")
+
+GH_batch2_QC<- subset(GH_seurat_batch2_sub, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+save(GH_batch2_QC, file = "GH_batch2_QC.RData")
+
+metadata <- GH_batch1_QC@meta.data
+
+#Violin plot for nFeature RNA
+ggplot(metadata, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nFeature_RNA)) +
+  labs(y = "UMIs per cell", x = "Condition") + 
+  geom_violin()
+
+#Violin plot for nCount RNA
+ggplot(metadata, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nCount_RNA)) +
+  labs(y = "Genes per cell", x = "Condition") + 
+  geom_violin()
+
+#Violin plot for # of cells
+condition_summary <- data.frame(condition = names(table(metadata$condition)),
+                                count = as.vector(table(metadata$condition)))
+
+ggplot(condition_summary, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y=count)) + labs(x = "Condition", y = "Count") + geom_bar(stat = "identity", fill = "skyblue") 
+
+
+#______________________________________________________________________________________________________________
+#Violin plot for nFeature RNA
+ggplot(metadata, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nFeature_RNA)) +
+  labs(y = "UMIs per cell", x = "Condition") + 
+  geom_violin()
+
+#Violin plot for nCount RNA
+ggplot(metadata, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nCount_RNA)) +
+  labs(y = "Genes per cell", x = "Condition") + 
+  geom_violin()
+
+#Violin plot for # of cells
+condition_summary <- data.frame(condition = names(table(metadata$condition)),
+                                count = as.vector(table(metadata$condition)))
+
+ggplot(condition_summary, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y=count)) + labs(x = "Condition", y = "Count") + geom_bar(stat = "identity", fill = "skyblue") 
+```
+
+Creating QC figures for the combined EM+GH data. 
 ```{r}
 
-GH_seurat_batch2_clean_human <- subset(GH_seurat_batch2_clean, subset = Species == 'Human')
-GH_seurat_batch2_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean_human, pattern = "^MT-")
+load("/project/gilad/emaan/time_project/data/GH_seurat_batch1_human_final_2024.RData")
+load("/project/gilad/emaan/time_project/data/GH_seurat_batch2_human_final_2024.RData")
+load("/project/gilad/emaan/time_project/data/seurat_final_2023.RData")
 
-GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
-GH_seurat_batch1_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_clean_human, pattern = "^MT-")
+GH_seurat_batch1_sub[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_sub, pattern = "^MT-")
+GH_seurat_batch2_sub[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_sub, pattern = "^MT-")
+seurat_final_2023[["percent.mt"]] <- PercentageFeatureSet(seurat_final_2023, pattern = "^MT-")
 
-GH_seurat_batch2_clean_human_df <- GH_seurat_batch2_clean_human@meta.data
+metadata_EM <- seurat_final_2023@meta.data
+metadata_EM$batch <- "YRI"
+metadata_EM_sub <- metadata_EM[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
 
-GH_seurat_batch2_clean_human_df %>%
-  filter(condition == "H5_D14c") %>%
-  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
+metadata_GH1 <- GH_seurat_batch1_sub@meta.data
+metadata_GH1$batch <- "Human Panel"
+metadata_GH1_sub <- metadata_GH1[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
 
-GH_seurat_batch2_clean_human_df %>%
-  filter(condition == "H3_D7m") %>%
-  nrow()
+metadata_GH2 <- GH_seurat_batch2_sub@meta.data
+metadata_GH2$batch <- "Human Panel"
+metadata_GH2_sub <- metadata_GH2[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
 
-filtered_table1 <- GH_seurat_batch1_clean_df %>%
-  anti_join(spp_batch1, by = "barcode")
-mean(filtered_table1$nFeature_RNA, na.rm = TRUE)
+# Combine the data tables into one
+combined_data <- rbind(metadata_EM_sub, metadata_GH1_sub, metadata_GH2_sub)
 
-filtered_table1 <- GH_seurat_batch2_clean_human_df%>%
-  anti_join(spp_batch2, by = "barcode")
-mean(filtered_table1$nFeature_RNA, na.rm = TRUE)
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = nFeature_RNA, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "nFeature_RNA") +
+  theme_classic()
 
-filtered_table1  %>%
-  filter(condition == "H1_D14m") %>%
-  nrow()
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = nCount_RNA, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "nCount_RNA") +
+  theme_classic()
 
-filtered_table1 %>%
-  filter(condition == "H5_D14c") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = percent.mt, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "percent.mt") +
+  theme_classic()
 
-#Converting the actual first row into a column 
-GH_seurat_batch2_clean_human_df<- rownames_to_column(GH_seurat_batch2_clean_human_df, var = "barcode")
-#Getting rid of the -1 in the barcodes column
-GH_seurat_batch2_clean_human_df$barcode <- gsub("-1", "", GH_seurat_batch2_clean_human_df$barcode)
+condition_summary_EM <- data.frame(condition = names(table(metadata_EM_sub$condition)),
+                                count = as.vector(table(metadata_EM_sub$condition)))
 
+condition_summary_GH1<- data.frame(condition = names(table(metadata_GH1_sub$condition)),
+                                count = as.vector(table(metadata_GH1_sub$condition)))
 
+condition_summary_GH2<- data.frame(condition = names(table(metadata_GH2_sub$condition)),
+                                count = as.vector(table(metadata_GH2_sub$condition)))
 
-GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean, subset = Species == 'Human')
-GH_seurat_batch1_clean_human_df <- GH_seurat_batch1_clean_human@meta.data
+condition_summary_EM$batch <- "YRI"
+condition_summary_GH1$batch <- "Human Panel"
+condition_summary_GH2$batch <- "Human Panel"
 
-library(dplyr)
-GH_seurat_batch1_clean_human_df %>%
-  filter(condition == "H2_D14c") %>%
-  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
+combined_summary <- rbind(condition_summary_EM, condition_summary_GH1, condition_summary_GH2)
 
-GH_seurat_batch1_clean_human_df %>%
-  filter(condition == "H2_D14c") %>%
-  nrow()
-
-#Converting the actual first row into a column 
-GH_seurat_batch1_clean_human_df<- rownames_to_column(GH_seurat_batch1_clean_human_df, var = "barcode")
-#Getting rid of the -1 in the barcodes column
-GH_seurat_batch1_clean_human_df$barcode <- gsub("-1", "", GH_seurat_batch1_clean_human_df$barcode)
-
-filtered_table1 <- GH_seurat_batch2_clean_human_df %>%
-  anti_join(spp_batch2, by = "barcode")
-
-filtered_table1 %>%
-  filter(condition == "H5_D14c") %>%
-  summarise(average_ncount = mean(percent.mt, na.rm = TRUE))
-
-filtered_table1 %>%
-  filter(condition == "H1_D00") %>%
-  nrow()
-
-
-GH_seurat_batch1_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch1_clean_human, pattern = "^MT-")
-
-GH_seurat_batch2_clean_human[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean_human, pattern = "^MT-")
-
-GH_seurat_batch2_clean[["percent.mt"]] <- PercentageFeatureSet(GH_seurat_batch2_clean, pattern = "^MT-")
-
-table_1$new_column <- sub("_(.*)", "", table_1$condition)
-table_2$new_column <- sub("_(.*)", "", table_2$condition)
-
-
-GH_seurat_batch1_clean <- AddMetaData(object=GH_seurat_batch1_clean, metadata = species_assignment, col.name ='Species')
-
-vector2 <- table_2$new_column
-
-GH_seurat_batch1_clean_human_1 <- AddMetaData(object=GH_seurat_batch1_clean_human , metadata = table_1)
-GH_seurat_batch2_clean_human_2 <- AddMetaData(object=GH_seurat_batch2_clean_human , metadata = table_2)
+ggplot(combined_summary, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = count, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "count") +
+  theme_classic()
 
 
-seurat_revised[["percent.mt"]] <- PercentageFeatureSet(seurat_revised, pattern = "^MT-")
+```
 
-seurat_revised<- subset(seurat_revised, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
-GH_seurat_batch2_clean_human <- subset(GH_seurat_batch2_clean_human, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
-GH_seurat_batch1_clean_human <- subset(GH_seurat_batch1_clean_human, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+Integrating EM+GH data and creating UMAPs. Files saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. The file name format follows integrate_all_human_xpca_nonreg.Rdata or integrate_all_human_xpca_reg.RData.  
+````{r}
 
-library(dplyr)
-library(Seurat)
-library(patchwork)
-library(ggplot2)
+load("/project/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project/gilad/emaan/time_project/data/seurat_QC_2024.RData")
 
 #Seurat objects being used
-NA18856 <- subset(seurat_revised, subset = donor_id == 'NA18856')
-NA18855 <- subset(seurat_revised, subset = donor_id == 'NA18855')
-NA19160 <- subset(seurat_revised, subset = donor_id == 'NA19160')
-H1 <- subset(GH_seurat_batch1_clean_human_1, subset = new_column == 'H1')
-H3 <- subset(GH_seurat_batch2_clean_human_2, subset = new_column == 'H3')
-H5 <- subset(GH_seurat_batch2_clean_human_2, subset = new_column == 'H5')
+NA18856 <- subset(seurat_QC_2024, subset = donor_id == 'NA18856')
+NA18855 <- subset(seurat_QC_2024, subset = donor_id == 'NA18855')
+NA19160 <- subset(seurat_QC_2024, subset = donor_id == 'NA19160')
+H1 <- subset(GH_batch1_QC, subset = donor_ID == 'H1')
+H2 <- subset(GH_batch1_QC, subset = donor_ID == 'H2')
+H3 <- subset(GH_batch2_QC, subset = donor_ID == 'H3')
+H5 <- subset(GH_batch2_QC, subset = donor_ID == 'H5')
 
 #Creating a list of the Seurat objects
-individual_list <- list(NA18856, NA18855, NA19160, H1, H3, H5)
+individual_list <- list(NA18856, NA18855, NA19160, H1,H2,H3,H5)
 
 # normalize and identify variable features for each dataset independently
 individual_list <- lapply(X = individual_list, FUN = function(x) {
@@ -410,18 +439,24 @@ DefaultAssay(cells.combined) <- "integrated"
 
 #Standard workflow for visualization and clustering 
 cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+#If you want to regress out any variables
+#cells.combined <- ScaleData(cells.combined, vars.to.regress=c("nCount_RNA","percent.mt"))
+
 cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
 
 #Trying to find how many PCs to include
 ElbowPlot(cells.combined)
 DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
-#Try 15, 20, and 50 PCs
+#cells.combined at this step saved as cells.combined_integrated_sw in /project/gilad/emaan/time_project/data
 
-cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:25)
-cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:25)
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:15)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:15)
 
-save(cells.combined, file = "cells.combined.GH_EM_before.res.RData")
+#Trying different resolutions. 0.5 looks the best. Note: resolution greater than 1 results in larger number of clusters, resolution smaller than 1 results in smaller number of clusters
 
+cells.combined_1 <- FindClusters(cells.combined, resolution = 1)
+cells.combined_1.2 <- FindClusters(cells.combined, resolution = 1.2)
+cells.combined_0.4 <- FindClusters(cells.combined, resolution = 0.4)
 cells.combined <- FindClusters(cells.combined, resolution = 0.5)
 
 # Visualization
@@ -429,165 +464,44 @@ p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
 p2 <- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
 p1 + p2
 
-DimPlot(cells.combined, reduction = "umap", split.by = "condition")
+DimPlot(cells.combined_1, reduction = "umap", split.by = "condition",label=TRUE)
+DimPlot(cells.combined_1.2, reduction = "umap", split.by = "condition",label=TRUE)
+DimPlot(cells.combined_0.4, reduction = "umap", split.by = "condition",label=TRUE)
+DimPlot(cells.combined, reduction = "umap", split.by = "condition",label=TRUE)
 
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition == "D0"))
+DefaultAssay(cells.combined_0.4) <- "RNA"
 
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D0", "H1_D0","H5_D0")))
+Idents(cells.combined_0.4) <- factor(Idents(cells.combined_0.4))
+markers.to.plot <- c("SOX9", "SOX5", "SOX6", "COL2A1", "ACAN", "COL9A1", "MATN3", "SPARC", "COL11A1","PRG4")
+DotPlot(cells.combined_0.4, features = markers.to.plot, cols = c("lightgrey", "blue"), dot.scale = 8, col.min = 0) + RotatedAxis()
 
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D00", "H1_D00","H5_D0","D0","H1_D0")))
+plots <- VlnPlot(cells.combined_0.5, features = c("SOX5"), split.by = "condition",
+    pt.size = 0, combine = FALSE)
+wrap_plots(plots = plots, ncol = 1)
 
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7c", "H1_D7c","D14c","H1_D14c","H5_D14c","H3_D14c")))
+save(cells.combined, file = "/project/gilad/emaan/time_project/data/integrating_EM_GH/integrate_all_human_30pca_nonreg.RData")
 
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D14c","H1_D14c","H5_D14c","H3_D14c")))
-
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7c", "H1_D7c")))
-
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D0","D00","D7c", "H1_D7c","D14c","H1_D14c","H5_D14c","H3_D14c", "D7m","D14m","H1_D14m","H1_D7m","H3_D7m")))
-
-DimPlot(cells.combined, reduction = "umap", group.by = "condition", cells = which(cells.combined$condition %in% c("D7m","D14m","H1_D14m","H1_D7m","H3_D7m")))
-
-FeaturePlot(cells.combined, features = c("SOX9", "SOX5", "SOX6", "COL2A1", "ACAN", "COL9A1", "MATN3", "SPARC", "COL11A1","COL10A1","PRG4"))
-
-FeaturePlot(cells.combined, features = "NES")
-FeaturePlot(cells.combined, features = "SOX2")
-FeaturePlot(cells.combined, features = "OTX2")
-FeaturePlot(cells.combined, features = "WNT3A")
-
-
-FeaturePlot(cells.combined, features = "SOX5")
-FeaturePlot(cells.combined, features = "SOX6")
-FeaturePlot(cells.combined, features = "COL2A1")
-FeaturePlot(cells.combined, features = "ACAN") #only in Wu
-FeaturePlot(cells.combined, features = "COL9A1") #only in Wu
-FeaturePlot(cells.combined, features = "MATN3") #mainly in Wu
-FeaturePlot(cells.combined, features = "SPARC") #mainly in Wu
-FeaturePlot(cells.combined, features = "COL11A1")
-FeaturePlot(cells.combined, features = "PRG4")
-
-
-na_rows <- table_1_test[is.na(table_1_test$species), ]
-
-# Create a histogram of the 'n_featureRNA' column for the selected rows
-hist(na_rows$n_FeatureRNA)
-
-
-#feature count + UMI count (each individual and time point to see how variable it is); make a table that is individual timepoint then have the number of single cells that are in the data, number of genes per cell, UMP, nFeature (to see how different those are)
-
-#look at the individual distribution of in the UMAP to see if they cluster together
-#genes highly expressed in cluster 10 vs. the other day 7 and day 14. (is that one individual or all of the individual there)
-
-#look more closely at the mesenspheres and where they are
-
-#topic modeling (unsupervised --> define how many groups you want.worth while to try 6 and 3)
-
-library(data.table)
-
-# Print the result
-print(average_ncount_H1_D7m)
+save(cells.combined, file = "/project/gilad/emaan/time_project/data/integrating_EM_GH/integrate_all_human_15pca_nonreg.RData")
 
 ```
 
+Integrating EM+GH data using GH code. The code used is in /project/gilad/emaan/time_project/code. The output files are saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. 
 ```{r}
 
-seurat_revised_df <- seurat_revised@meta.data
+#visualizing integrated dataset. 
+DimPlot(integrate,
+        group.by="condition",
+        label=TRUE,
+        label.size=2,
+        reduction="umap") +
+  labs(x="UMAP1",y="UMAP2") +
+  NoLegend()
 
-seurat_revised_df %>%
-  filter(condition == "D00" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D0" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D7m" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D14m" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D7c" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D14c" & donor_id == "NA19160") %>%
-  summarise(average_ncount = mean(nFeature_RNA, na.rm = TRUE))
-
-seurat_revised_df %>%
-  filter(condition == "D00"  & donor_id == "NA18856") %>%
-  nrow()
-
-
+# UMAP plot without labels
+umap_plot <- DimPlot(integrate, group.by = "condition", reduction = "umap", label=FALSE, label.size=5) +
+  labs(x = "UMAP1", y = "UMAP2") +
+  NoLegend()
 ```
 
-```{r}
-
-
-merged_data <- merge(seurat_revised, y = c(GH_seurat_batch2_clean_human, GH_seurat_batch1_clean_human), project = "merged_data")
-
-library(fastTopics)
-library(Seurat)
-library(Matrix)
-
-
-#Extract raw count matrix from seurat object and get it in correct format for fastTopics
-#need to fit the model to the count data (unintegrated)
-raw_counts <- merged_data@assays$RNA@counts
-#remove genes without any counts in droplets
-raw_counts <- raw_counts[rowSums(raw_counts > 0) > 0,] 
-#get into correct orientation (barcodes x features)
-raw_counts <- t(raw_counts)
-dim(raw_counts)
-
-
-if (file.exists("output/topicModel_k=3.rds")) {
-  fit <- readRDS("output/topicModel_k=3.rds")
-} else {
-  fit <- fit_poisson_nmf(raw_counts,k = 3,numiter = 150)
-  saveRDS(fit, "output/topicModel_k=3.rds")
-}
-
-#compute weights and topics (rescale each of l and f to add up to 1)
-l <- fit$L
-f <- fit$F
-weights <- sweep(l, MARGIN = 2, colSums(f), `*`)
-scale <- rowSums(weights)
-weights <- weights / scale
-topics <- f / colSums(f) # add up to 1
-
-
-library(stringr)
-library(pheatmap)
-library(dummies)
-library(tidyverse)
-
-#selected markers for different cell types
-MSC_markers <- c("THY1", "NT5E", "ENG")
-Chondrocyte_markers <- c("COL2A1", "ACAN", "SOX9", "SOX5", "SOX6", "COL9A1")
-iPSC_markers <- c("POU5F1", "SOX2", "NANOG")
-markers <- c(iPSC_markers, Chondrocyte_markers, MSC_markers)
-#annotate the markers with the cell type they represent
-markers_description <- data.frame(marker_type = c(rep("iPSC", 3), rep("Chondrocyte", 6), rep("MSC", 3)))
-rownames(markers_description) <- markers
-
-#plot heatmap of relative expression of marker genes in each topic
-topics_markers <- topics[markers,]
-pheatmap(topics_markers, cluster_cols = FALSE, cluster_rows = FALSE, annotation_row = markers_description, scale = "row")
-
-#get labels of cells (cell type) and reorder to group them
-sample <- as.data.frame(merged_data@meta.data$Cell.Type)
-sample_labels <- sample %>% 
-     dplyr::transmute(Cell.Type = stringr::word(`merged_data@meta.data$Cell.Type`, start = 1))
-rownames(sample_labels) <- rownames(merged_data@meta.data)
-sample <- sample_labels %>% 
-     dplyr::arrange(Cell.Type)
-
-
-
-
-```
 
 
