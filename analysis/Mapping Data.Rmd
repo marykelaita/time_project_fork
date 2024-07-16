@@ -1,0 +1,607 @@
+---
+title: "Mapping_Data"
+output: html_document
+date: '2024-05-30'
+---
+
+Mapping EM+GH to Wu/EB dataset. This involves creating (1) a query data set which is the EM+GH integrated data and (2) a reference data set which is the Wu/EB data. 
+```{r}
+
+#Load and preprocess reference dataset
+wu_combined_rev <- readRDS("/project/gilad/ghousman/chondro-human-chimp/hc-chondro-time/chondro-time-evo/data/external/wu_combined_rev.rds")
+
+eb_data <- readRDS(file="/project2/gilad/kenneth/share/pilot.humans.rds")
+colnames(eb_data@meta.data)[colnames(eb_data@meta.data) == "labels"] <- "ChondroStage"
+
+# Normalize, find variable features, scale data, run PCA, and perform clustering
+wu_combined_rev <- NormalizeData(wu_combined_rev)
+wu_combined_rev <- FindVariableFeatures(wu_combined_rev, selection.method = "vst", nfeatures = 2000)
+wu_combined_rev <- ScaleData(wu_combined_rev, verbose = FALSE)
+wu_combined_rev <- RunPCA(wu_combined_rev, npcs = 100, verbose = FALSE)
+
+eb_data  <- NormalizeData(eb_data)
+eb_data  <- FindVariableFeatures(eb_data , selection.method = "vst", nfeatures = 2000)
+eb_data  <- ScaleData(eb_data , verbose = FALSE)
+eb_data  <- RunPCA(eb_data, npcs = 100, verbose = FALSE)
+
+# Elbow plot to determine number of PCs to use (optional step for manual inspection)
+ElbowPlot(wu_combined_rev)
+DimHeatmap(wu_combined_rev, dims = 1:50, cells = 500, balanced = TRUE)
+
+# Run UMAP and Find Neighbors using the chosen number of PCs.
+wu_combined_rev <- RunUMAP(wu_combined_rev, reduction = "pca", dims = 1:70, reduction.name = "wnn.umap", return.model = TRUE)
+wu_combined_rev <- FindNeighbors(wu_combined_rev, reduction = "pca", dims = 1:70)
+
+eb_data  <- RunUMAP(eb_data, reduction = "pca", dims = 1:70, reduction.name = "wnn2.umap", return.model = TRUE)
+eb_data  <- FindNeighbors(eb_data, reduction = "pca", dims = 1:70)
+
+# Perform clustering
+wu_combined_rev <- FindClusters(wu_combined_rev, resolution = 0.5)
+eb_data  <- FindClusters(eb_data, resolution = 0.5)
+
+DimPlot(wu_combined_rev, group.by = "ChondroStage")
+DimPlot(eb_data, group.by = "labels", label=FALSE)
+
+
+# Proceed with the integrated object
+integrated_ref <- ScaleData(integrated_ref)
+integrated_ref <- RunPCA(integrated_ref, npcs = 30)
+integrated_ref1 <- RunUMAP(integrated_ref, dims = 1:30, reduction.name="wnn.umap.int", return.model = TRUE)
+
+
+# Load and preprocess query dataset (make sure the PCs match the reference dataset)
+load("/project/gilad/emaan/time_project/data/integrating_EM_GH/cells.combined_integrated_sw.RData")
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:50)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:50)
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+
+reference_features <- VariableFeatures(integrate)
+query_features <- VariableFeatures(query)
+common_features <- intersect(reference_features, query_features)
+
+# Find anchors between reference and query datasets
+anchors <- FindTransferAnchors(
+  reference = integrate,
+  query = query,
+  features = common_features,
+  normalization.method = "LogNormalize",
+  reference.reduction = "cca",
+  dims = 1:30
+)
+
+reference <- RunUMAP(reference, reduction = "pca", dims = 1:30, reduction.name = "wnn3.umap")
+
+# Map query data using reference UMAP model
+query_chondro2 <- MapQuery(
+  anchorset = anchors,
+  query = integrate,
+  reference = reference,
+  refdata = "orig.ident",
+  reference.reduction = "pca",
+  reduction.model = "wnn3.umap"
+)
+
+# Check available reductions in query_chondro2
+print(Reductions(query_chondro2))
+
+# Plot using the correct reduction name
+if ("ref.umap" %in% Reductions(query_chondro2)) {
+  DimPlot(query_chondro2, reduction = "ref.umap", group.by = "predicted.id", label = TRUE, label.size = 3, repel = TRUE)
+} else {
+  stop("UMAP reduction not found in the query Seurat object.")
+}
+
+DimPlot(query_chondro2, reduction = "ref.umap", group.by = "predicted.id", label = TRUE, label.size = 3, repel = TRUE)
+
+```
+
+Plotting predicted.id scores vs. time points. 
+```{r}
+
+
+library(ggplot2)
+library(dplyr)
+
+query_df <- query_chondro2@meta.data
+
+query_d0 <- subset(query_df, condition=="D0")
+query_d00 <- subset(query_df, condition=="D00")
+query_d7m <- subset(query_df, condition=="D7m")
+query_d14m <- subset(query_df, condition=="D14m")
+query_d7c <- subset(query_df, condition=="D7c")
+query_d14c <- subset(query_df, condition=="D14c")
+
+# Ensure 'condition' and 'predicted.id' are factors with specific order
+query_df$condition <- factor(query_df$condition, levels = c("d00", "d0", "d7m", "d7", "d14m", "d14"))
+query_df$predicted.id <- factor(query_df$predicted.id, levels = c("d7", "d14", "d28", "d42"))
+
+# Bar Plot: Count of cells in each timepoint category for each reference timepoint
+bar_plot_data <- query_d14c %>%
+  group_by(condition, predicted.id) %>%
+  summarise(count = n())
+
+ggplot(bar_plot_data, aes(x = condition, y = count, fill = predicted.id)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(x="",y = "Number of Cells", fill = "Predicted Timepoint") +
+  theme_classic() +
+  ggtitle("D14m")
+
+# Box Plot: Distribution of percentage scores for each predicted reference timepoint within each actual timepoint category
+ggplot(query_d14c, aes(x = condition, y = predicted.id.score, fill = predicted.id)) +
+  geom_boxplot() +
+  labs(x = "", y = "Percentage Score", fill = "Predicted Timepoint") +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, 1))
+```
+
+OLD CODE: Mapping EM+GH to Wu dataset. This involves creating (1) a query data set which is the EM+GH integrated data and (2) a reference data set which is the Wu data. This was the initial code I used without having the query data set undergo any PCA. 
+```{r}
+
+library(Seurat)
+
+load("/project/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+
+
+NA18856 <- subset(seurat_QC_2024, subset = donor_id == "NA18856")
+NA18855 <- subset(seurat_QC_2024, subset = donor_id == "NA18855")
+NA19160 <- subset(seurat_QC_2024, subset = donor_id == "NA19160")
+H1 <- subset(GH_batch1_QC, subset = donor_ID == "H1")
+H2 <- subset(GH_batch1_QC, subset = donor_ID == "H2")
+H3 <- subset(GH_batch2_QC, subset = donor_ID == "H3")
+H5 <- subset(GH_batch2_QC, subset = donor_ID == "H5")
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160, H1,H2,H3,H5)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+save(cells.combined, file= "/project/gilad/emaan/time_project/data/Wu_reference_mapping/all_cells_combined.RData")
+
+#Pulling Wu data from directory
+load("/project/gilad/emaan/time_project/data/wu_combined_rev.RData")
+
+#Mapping Process: query is the chondro data that has been integrated but not undergone pca
+anchors <- FindTransferAnchors(
+  reference = wu_combined_rev,
+  query = cells.combined,
+  normalization.method = "LogNormalize",
+  reference.reduction = "pca",
+  dims = 1:20,
+)
+
+wu_combined_20=RunUMAP(wu_combined_rev,return.model=TRUE,reduction.name = "new.UMAP", dims=1:20)
+
+Wu_UMAP_20 <- MapQuery(
+  anchorset = anchors,
+  query = cells.combined,
+  reference = wu_combined_20,
+  refdata = wu_combined_20$labels,
+  reference.reduction = "pca", 
+  reduction.model = "new.UMAP",
+)
+
+
+anchors <- FindTransferAnchors(
+  reference = cells.combined,
+  query = wu_combined_rev,
+  normalization.method = "LogNormalize",
+  reference.reduction = "pca",
+  dims = 1:20,
+)
+
+
+
+```
+
+OLD CODE: Mapping EM+GH to KB dataset. This involves creating (1) a query data set which is the EM+GH integrated data and (2) a reference data set which is the KB data. This was the initial code I used without having the query data set undergo any PCA. 
+```{r}
+
+#Pulling Kenneth's data from directory
+pilot.humans <- readRDS("/project2/gilad/kenneth/share/pilot.humans.rds")
+pilot.humans <- subset(pilot.humans, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+
+#Mapping Process: query is the chondro data that has been subsetted but not undergone pca
+anchors <- FindTransferAnchors(
+  reference = pilot.humans,
+  query = cells.combined,
+  normalization.method = "LogNormalize",
+  reference.reduction = "pca",
+  dims = 1:50,
+)
+
+pilot.humans_50=RunUMAP(pilot.humans,return.model=TRUE,reduction.name = "new.UMAP", dims=1:50)
+save (pilot.humans_50, file= "/project2/gilad/emaan/time_project/data/pilot.humans_50.RData")
+
+KB_UMAP <- MapQuery(
+  anchorset = anchors,
+  query = cells.combined,
+  reference = pilot.humans_50,
+  refdata = pilot.humans_50$labels,
+  reference.reduction = "pca", 
+  reduction.model = "new.UMAP",
+)
+
+save(KB_UMAP, file = "/project2/gilad/emaan/time_project/data/KB_UMAP.RData")
+
+p2 = DimPlot(KB_UMAP, reduction = "ref.umap", group.by = "predicted.id", label = TRUE, label.size =3, repel = TRUE)  +xlim(-12,10) +ylim(-10,10) + NoLegend()
+
+p1 = DimPlot(pilot.humans_50, reduction = "new.UMAP", group.by = "labels", label = TRUE, label.size = 3, repel = TRUE) +xlim(-12,10) +ylim(-10,10) + NoLegend()
+
+p1+p2
+
+KB_UMAP_table <- KB_UMAP@meta.data
+
+result <- KB_UMAP_table %>%
+  group_by(condition, predicted.id) %>%
+  summarize(count = n()) %>%
+  arrange(condition, predicted.id)
+
+# Print the result
+print(result)
+```
+
+
+Integrating KB data with GH+EM human data (GH's original code shown). The code that I used to process my data is in /project/gilad/emaan/time_project/code/mapping_KB_GHcode.sh. The output files are saved in /project/gilad/emaan/time_project/data/integrating_KB/integrate_KB_var_cca_reg.RData. 
+```{r}
+
+#define parameters for integrated data
+
+#filter <- ""
+#filter <- ".filterL"
+filter <- ".filterC"
+
+set <- "chond-ind"  #all chondrogenic cells
+
+genes <- "Var"  #features that are repeatedly variable across datasets for integration
+#genes <- "No0"  #all genes that have at least 1 UMI count across samples
+#genes <- "19k"  #all 19397 genes
+
+dimred <- "cca"
+#dimred <- "pca"
+#dimred <- "ref"
+
+kweigh <- 50
+#kweigh <- 100
+
+regout <- "reg" #this takes a long time when genes=No0
+#regout <- "non"
+
+#Integrate cells (across individuals)
+organoid_data <- readRDS(paste0("./data/06_data",filter,".log.",set,".rds"))
+eb_data <- readRDS(file="/project2/gilad/kenneth/share/pilot.humans.rds")
+
+#isolate just human data
+organoid_data_human <- append(organoid_data[[1]],append(organoid_data[[3]],append(organoid_data[[5]],organoid_data[[7]])))
+
+#add chondro-stage metadata
+eb_data$ChondroStage <- "KB: iPSC-EB"
+
+obj <- append(organoid_data_human,eb_data)
+rm(organoid_data,organoid_data_human,eb_data)
+
+#select genes to use for finding integration anchors
+if (genes=="Var") {
+  obj.features <- SelectIntegrationFeatures(object.list = obj)
+  length(obj.features)
+}
+if (genes=="No0") {
+  geneList <- c()
+  for(object in obj) {
+    geneList <- c(geneList,rownames(object@assays$RNA@counts)[rowSums(object@assays$RNA@counts)!=0])
+  }
+  obj.features <- unique(geneList)
+  length(obj.features)
+}
+if (genes=="19k") {
+  obj.features <- rownames(obj[[1]]@assays$RNA@counts)
+  length(obj.features)
+}
+
+#scale data and run pca
+obj <- lapply(X=obj, FUN=function(x) {
+  x <- ScaleData(x, features=obj.features, verbose=FALSE)
+  x <- RunPCA(x, features=obj.features, verbose=FALSE)
+})
+
+#find integration anchors
+if (dimred=="cca") {
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reduction="cca")
+}
+if (dimred=="pca") {
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reduction="rpca")
+}
+if (dimred=="ref") {
+  ref.data <- c(2,9) #H1-r2 and C1-r2 differentiated best
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reference=ref.data,
+                                        reduction="rpca")
+}
+
+#integrate data
+integrate <- IntegrateData(anchorset=obj.anchors,
+                           normalization.method="LogNormalize",
+                           k.weight=kweigh)
+
+#regress out unwanted variables
+if (regout=="reg") {
+  integrate <- ScaleData(integrate, vars.to.regress=c("nCount_RNA","percent.mt"))
+}
+if (regout=="non") {
+  integrate <- ScaleData(integrate, vars.to.regress=NULL, verbose=FALSE)
+}
+
+#run pca
+integrate <- RunPCA(object=integrate,
+                    npcs=100,
+                    verbose=FALSE)
+
+#keep all dims that explaim more than 0.1% of variance
+pva <- integrate@reductions$pca@stdev^2/integrate@reductions$pca@misc$total.variance
+ndim <- length(which(pva>=0.001))
+print(ndim)
+
+#run umap
+integrate <- RunUMAP(integrate,
+                     dims=1:ndim)
+
+#save data
+saveRDS(integrate, file=paste0("./data/integrated/06_combined-data-eb-human",filter,".log.",set,".int.",genes,".",dimred,".",kweigh,".",regout,".rds"))
+
+#clear variables
+rm(genes,dimred,kweigh,regout)
+rm(obj,obj.features,obj.anchors,integrate,pva,ndim)
+
+#visualize data
+integrate <- readRDS(file=paste0("./data/integrated/06_combined-data-eb-human",filter,".log.",set,".int.",genes,".",dimred,".",kweigh,".",regout,".rds"))
+DimPlot(integrate,
+        group.by="ChondroStage",
+        reduction="umap") +
+  labs(x="UMAP1",y="UMAP2")
+DimPlot(integrate,
+        group.by="labels",
+        label=TRUE,
+        reduction="umap") +
+  labs(x="UMAP1",y="UMAP2") +
+  NoLegend()
+
+```
+
+Visualizing the data. The output file from GH code is stored in /project/gilad/emaan/time_project/data/integrating_KB/integrate_KB_var_cca_reg.RData. 
+```{r}
+#visualize data EM code
+DimPlot(integrate,
+        group.by="condition",
+        label=TRUE,
+        label.size=2,
+        reduction="umap") +
+  labs(x="UMAP1",y="UMAP2") +
+  NoLegend()
+
+# UMAP plot without labels
+umap_plot <- DimPlot(integrate, group.by = "condition", reduction = "umap", label=FALSE, label.size=5) +
+  labs(x = "UMAP1", y = "UMAP2") +
+  NoLegend()
+
+# Specify the clusters you want to label
+clusters_to_label <- c("Early Mesoderm 1", "Cardiomyocytes","Epicardial fat cells","Early Ectoderm 1", "Early Endoderm 1") 
+
+# Add labels to the specified clusters
+umap_plot_labeled <- LabelClusters(plot = umap_plot, id = "labels", clusters = clusters_to_label, repel = TRUE, size = 3)
+
+# Display the plot
+print(umap_plot_labeled)
+```
+
+Integrating KB+EM+GH data using my original integration code. This utilizes standard integration with 15 PCs. The output is saved in project/gilad/emaan/time_project/data/integrating_KB/cells.combined_all_KB.RData. 
+```{r}
+
+library(Seurat)
+
+load("/project/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+load("/project/gilad/emaan/time_project/code/pilot.humans.RData")
+pilot.humans <- subset(pilot.humans, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 5)
+
+
+NA18856 <- subset(seurat_QC_2024, subset = donor_id == 'NA18856')
+NA18855 <- subset(seurat_QC_2024, subset = donor_id == 'NA18855')
+NA19160 <- subset(seurat_QC_2024, subset = donor_id == 'NA19160')
+H1 <- subset(GH_batch1_QC, subset = donor_ID == 'H1')
+H2 <- subset(GH_batch1_QC, subset = donor_ID == 'H2')
+H3 <- subset(GH_batch2_QC, subset = donor_ID == 'H3')
+H5 <- subset(GH_batch2_QC, subset = donor_ID == 'H5')
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160, H1,H2,H3,H5,pilot.humans)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+save(cells.combined, file = "/project/gilad/emaan/time_project/data/cells.combined_all_KB.RData")
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:15)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:15)
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+
+# Visualization
+p1<- DimPlot(cells.combined, reduction = "umap", group.by = "orig.ident")
+p2<- DimPlot(cells.combined, reduction = "umap", label = TRUE, repel = TRUE)
+
+```
+
+Integrating Wu data with GH+EM human data (GH's original code shown). The code that I used to process my data is in /project/gilad/emaan/time_project/code/mapping_Wu_GHcode.sh. readRDS("/project/gilad/ghousman/chondro-human-chimp/hc-chondro-time/chondro-time-evo/data/external/wu_combined_rev.rds"). The file is saved in /project/gilad/emaan/time_project/data/Wu_reference_mapping. 
+```{r}
+
+#define parameters for integrated data
+
+#filter <- ""
+#filter <- ".filterL"
+filter <- ".filterC"
+
+set <- "chond-ind"  #all chondrogenic cells
+
+genes <- "Var"  #features that are repeatedly variable across datasets for integration
+#genes <- "No0"  #all genes that have at least 1 UMI count across samples
+#genes <- "19k"  #all 19397 genes
+
+dimred <- "cca"
+#dimred <- "pca"
+#dimred <- "ref"
+
+kweigh <- 50
+#kweigh <- 100
+
+regout <- "reg" #this takes a long time when genes=No0
+#regout <- "non"
+
+
+#Integrate all cells (across individuals)
+
+organoid_data <- readRDS(paste0("./data/06_data",filter,".log.",set,".rds"))
+wu_data  <- readRDS(file="./data/external/wu_combined_rev.rds")
+#wu_data <- wu_combined_rev
+
+obj <- append(organoid_data,wu_data)
+rm(organoid_data,wu_data)
+
+#select genes to use for finding integration anchors
+if (genes=="Var") {
+  obj.features <- SelectIntegrationFeatures(object.list = obj)
+  length(obj.features)
+}
+if (genes=="No0") {
+  geneList <- c()
+  for(object in obj) {
+    geneList <- c(geneList,rownames(object@assays$RNA@counts)[rowSums(object@assays$RNA@counts)!=0])
+  }
+  obj.features <- unique(geneList)
+  length(obj.features)
+}
+if (genes=="19k") {
+  obj.features <- rownames(obj[[1]]@assays$RNA@counts)
+  length(obj.features)
+}
+
+#scale data and run pca
+obj <- lapply(X=obj, FUN=function(x) {
+  x <- ScaleData(x, features=obj.features, verbose=FALSE)
+  x <- RunPCA(x, features=obj.features, verbose=FALSE)
+})
+
+#find integration anchors
+if (dimred=="cca") {
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reduction="cca")
+}
+if (dimred=="pca") {
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reduction="rpca")
+}
+if (dimred=="ref") {
+  ref.data <- c(2,9) #H1-r2 and C1-r2 differentiated best
+  obj.anchors <- FindIntegrationAnchors(object.list=obj,
+                                        normalization.method="LogNormalize",
+                                        anchor.features=obj.features,
+                                        reference=ref.data,
+                                        reduction="rpca")
+}
+
+#integrate data
+integrate <- IntegrateData(anchorset=obj.anchors,
+                           normalization.method="LogNormalize",
+                           k.weight=kweigh)
+
+#regress out unwanted variables
+if (regout=="reg") {
+  integrate <- ScaleData(integrate, vars.to.regress=c("nCount_RNA","percent.mt"))
+}
+if (regout=="non") {
+  integrate <- ScaleData(integrate, vars.to.regress=NULL, verbose=FALSE)
+}
+
+#run pca
+integrate <- RunPCA(object=integrate,
+                    npcs=100,
+                    verbose=FALSE)
+
+#keep all dims that explaim more than 0.1% of variance
+pva <- integrate@reductions$pca@stdev^2/integrate@reductions$pca@misc$total.variance
+ndim <- length(which(pva>=0.001))
+print(ndim)
+
+#run umap
+integrate <- RunUMAP(integrate,
+                     dims=1:ndim)
+
+#save data
+saveRDS(integrate, file=paste0("./data/integrated/06_combined-data-wu",filter,".log.",set,".int.",genes,".",dimred,".",kweigh,".",regout,".rds"))
+
+#clear variables
+rm(genes,dimred,kweigh,regout)
+rm(obj,obj.features,obj.anchors,integrate,pva,ndim)
+
+
+#visualize data
+integrate <- readRDS(file=paste0("./data/integrated/06_combined-data-wu",filter,".log.",set,".int.",genes,".",dimred,".",kweigh,".",regout,".rds"))
+
+DimPlot(integrate,
+        group.by="condition",
+        reduction="umap") +
+  labs(x="UMAP1",y="UMAP2")
+
+FeaturePlot(object = integrate, features = 'nCount_RNA')
+```
+
+
+
+
+
+
+
