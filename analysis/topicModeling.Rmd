@@ -26,18 +26,17 @@ library(fastTopics)
 library(Seurat)
 library(Matrix)
 
+load("/project/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+load("/project/gilad/emaan/time_project/code/pilot.humans.RData")
 
-colnames(wu_combined@meta.data)[4] <- "condition"
+pilot.ecotderm <- subset(pilot.humans, subset = labels %in% c("Early Ectoderm 1", "Early Ectoderm 2", "Early Endoderm 1", "Early Endoderm 2"))
+colnames(pilot.ecotderm@meta.data)[8] <- "condition"
 
-metadata <- merged_data@meta.data
+load("/project/gilad/emaan/time_project/data/wu_combined_rev.RData")
 
-merged_data <- merge(GH_seurat_batch1_human, y = c(GH_seurat_batch2_human, seurat_final_2023,wu_combined))
-dim(merged_data)
-
-saveRDS(merged_data, "/project2/gilad/emaan/time_project/data/merged_data.rds")
-
-#load data (stored in a seurat object)
-merged_data <- readRDS("/project2/gilad/emaan/time_project/data/merged_data.rds")
+merged_data <- merge(seurat_QC_2024, y = c(GH_batch1_QC, GH_batch2_QC,wu_combined_rev,pilot.ecotderm))
 
 #Extract raw count matrix from seurat object and get it in correct format for fastTopics
 #need to fit the model to the count data (unintegrated)
@@ -50,7 +49,6 @@ dim(raw_counts)
 ```
 
 # Use fastTopics functions to fit a topic model k=3 or k=6 to the data
-
 ```{r fit topic model}
 library(fastTopics)
 library(Seurat)
@@ -78,7 +76,6 @@ topics <- f / colSums(f) # add up to 1
 # Heatmap
 
 Here we select a few marker genes to represent iPSCs, MSCs, Hepatocytes, and Chondrocytes and visualize the relative loadings of these marker genes in each of the 7 fitted topics using a scaled heatmap.
-
 ```{r plot correlations external}
 library(stringr)
 library(tidyverse)
@@ -104,7 +101,6 @@ pheatmap(topics_markers, cluster_cols = FALSE, cluster_rows = FALSE, annotation_
 # Structure Plot
 
 The structure plot represents the topic membership proportions of individual cells in each of the cell types using stacked bar plots.
-
 ```{r structure plot external}
 merged_data <- readRDS("/project2/gilad/emaan/time_project/data/merged_data.rds")
 ```
@@ -147,10 +143,7 @@ structure_plot <- structure_plot(dplyr::select(poisson2multinom(fit),loadings = 
 print(structure_plot)
 ```
 
-
-
-
-
+#Original code from Anthony
 ```{r structure plot external}
 #get labels of cells (cell type) and reorder to group them
 sample <- as.data.frame(merged_data@meta.data$Cell.Type)
