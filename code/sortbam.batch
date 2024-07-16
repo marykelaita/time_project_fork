@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --job-name=sort_bam
+#SBATCH --time=36:00:00
+#SBATCH --partition=broadwl
+#SBATCH --mem=48G
+#SBATCH --tasks-per-node=12
+#SBATCH --output=sort_bam.out
+
+module load R
+
+library(fastTopics)
+library(Seurat)
+library(Matrix)
+
+merged_data <- readRDS("/project2/gilad/emaan/data/external_scRNA/merged_external_scRNA.rds")
+raw_counts <- merged_data@assays$RNA@counts
+raw_counts <- raw_counts[rowSums(raw_counts > 0) > 0,] 
+raw_counts <- t(raw_counts)
+
+if (file.exists("output/topicModel_k=7.rds")) {
+  fit <- readRDS("output/topicModel_k=7.rds")
+} else {
+  fit <- fit_poisson_nmf(raw_counts,k = 7,numiter = 150)
+  saveRDS(fit, "output/topicModel_k=7.rds")
+}
