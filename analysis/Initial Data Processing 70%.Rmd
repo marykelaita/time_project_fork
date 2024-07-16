@@ -4,7 +4,7 @@ output: html_document
 date: '2023-02-03'
 ---
 
-Data being pulled is from the /project/gilad/emaan/chondro_rev folder. There is another folder named /project/gilad/emaan/chondro but data from that folder is not being used (since there was an issue with the bam files not merging/taking to long). Vireo was also only run on the chondro_rev folder. 
+Data being pulled is from the /project/gilad/emaan/chondro_rev folder. There is another folder named /project/gilad/emaan/chondro but data from that folder is not being used (since there was an issue with the bam files not merging/taking too long). Vireo was also only run on the chondro_rev folder. 
 
 Data from only the first sequencing run is in the /project/gilad/emaan/project folder. Initial analysis for this data is in /project/gilad/emaan/time_project/analysis/Initial_Data_Proccessing.Rmd
 
@@ -217,7 +217,7 @@ pilot.humans <- subset(pilot.humans, subset = nFeature_RNA > 200 & nFeature_RNA 
 
 seurat_chondro <- NormalizeData(seurat_chondro, normalization.method = "LogNormalize", scale.factor = 10000)
 
-#Mapping Process: query is the chondro data that has been subsetted but not undergone pca
+#Mapping Process: query is the chondro data that has been integrated but not undergone pca
 anchors <- FindTransferAnchors(
   reference = pilot.humans,
   query = cells.combined,
