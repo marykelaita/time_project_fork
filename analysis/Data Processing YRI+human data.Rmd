@@ -404,7 +404,7 @@ ggplot(combined_summary, aes(x = factor(condition, levels = c("D00", "D0", "D7c"
 
 ```
 
-Integrating EM+GH data and creating UMAPs. Files saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. The file name format follows integrate_all_human_xpca_nonreg.Rdata or integrate_all_human_xpca_reg.RData.  
+Integrating EM+GH data and creating UMAPs. Files saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. The file name format follows integrate_all_human_xpca_nonreg.Rdata or integrate_all_human_xpca_reg.RData. 
 ````{r}
 
 load("/project/gilad/emaan/time_project/data/GH_batch2_QC.RData")
@@ -449,8 +449,8 @@ ElbowPlot(cells.combined)
 DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
 #cells.combined at this step saved as cells.combined_integrated_sw in /project/gilad/emaan/time_project/data
 
-cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:15)
-cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:15)
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:30)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:30)
 
 #Trying different resolutions. 0.5 looks the best. Note: resolution greater than 1 results in larger number of clusters, resolution smaller than 1 results in smaller number of clusters
 
@@ -483,9 +483,16 @@ save(cells.combined, file = "/project/gilad/emaan/time_project/data/integrating_
 
 save(cells.combined, file = "/project/gilad/emaan/time_project/data/integrating_EM_GH/integrate_all_human_15pca_nonreg.RData")
 
+
+#Checking pearson correlation before and after regression
+FeatureScatter(cells.combined, feature1 = "nCount_RNA", feature2 = "PC_1")
+FeatureScatter(cells.combined, feature1 = "percent.mt", feature2 = "PC_1")
+
+
+
 ```
 
-Integrating EM+GH data using GH code. The code used is in /project/gilad/emaan/time_project/code. The output files are saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. 
+Integrating EM+GH data using GH code. The code used is in /project/gilad/emaan/time_project/code/mapping_all_human_GHcode.sh. The output files are saved in /project/gilad/emaan/time_project/data/integrating_EM_GH. Similar code was used to integrate EM+GH+Wu data using GH code. The code is in /project/gilad/emaan/time_project/code/mapping_wu_GHcode.sh. The file is saved in integrate_Wu_var_cca_reg.RData. 
 ```{r}
 
 #visualizing integrated dataset. 
@@ -501,6 +508,10 @@ DimPlot(integrate,
 umap_plot <- DimPlot(integrate, group.by = "condition", reduction = "umap", label=FALSE, label.size=5) +
   labs(x = "UMAP1", y = "UMAP2") +
   NoLegend()
+
+#Checking pearson correlation before and after regression to make sure it worked
+FeatureScatter(integrate, feature1 = "nCount_RNA", feature2 = "PC_1")
+FeatureScatter(integrate, feature1 = "percent.mt", feature2 = "PC_1")
 ```
 
 
