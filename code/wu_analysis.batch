@@ -1,0 +1,58 @@
+#!/bin/bash
+
+#SBATCH --job-name=UMAP_wu_combined
+#SBATCH --time=36:00:00
+#SBATCH --partition=broadwl
+#SBATCH --mem=48G
+#SBATCH --tasks-per-node=14
+
+module unload R
+module unload gcc
+
+module load R/4.2.0
+module load gcc/10.2.0
+
+Rscript -e '
+
+library(Seurat)
+install.packages("workflowr")
+install.packages("rlang")
+
+load("/project2/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+load("/project2/gilad/emaan/time_project/data/wu_combined_rev.RData")
+
+
+NA18856 <- subset(seurat_QC_2024, subset = donor_id == "NA18856")
+NA18855 <- subset(seurat_QC_2024, subset = donor_id == "NA18855")
+NA19160 <- subset(seurat_QC_2024, subset = donor_id == "NA19160")
+H1 <- subset(GH_batch1_QC, subset = donor_ID == "H1")
+H2 <- subset(GH_batch1_QC, subset = donor_ID == "H2")
+H3 <- subset(GH_batch2_QC, subset = donor_ID == "H3")
+H5 <- subset(GH_batch2_QC, subset = donor_ID == "H5")
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160, H1,H2,H3,H5,wu_combined_rev)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+
+save(cells.combined, file = "/project2/gilad/emaan/time_project/data/cells.combined_wu.RData")
+'
+
