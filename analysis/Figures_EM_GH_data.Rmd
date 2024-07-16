@@ -1,0 +1,188 @@
+---
+title: "Figures_EM_GH_data"
+output: html_document
+date: '2024-05-13'
+---
+
+This file contains the code for creating figures for the paper. 
+
+QC metric figures for EM+GH data. 
+```{r}
+
+library(ggplot2)
+
+load("/project2/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+
+metadata_EM <- seurat_QC_2024@meta.data
+metadata_EM$batch <- "YRI"
+metadata_EM_sub <- metadata_EM[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
+
+metadata_GH1 <- GH_batch1_QC@meta.data
+metadata_GH1$batch <- "Human Panel"
+metadata_GH1_sub <- metadata_GH1[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
+
+metadata_GH2 <- GH_batch2_QC@meta.data
+metadata_GH2$batch <- "Human Panel"
+metadata_GH2_sub <- metadata_GH2[, c("condition", "nFeature_RNA","nCount_RNA","percent.mt","batch")]
+
+# Combine the data tables into one
+combined_data <- rbind(metadata_EM_sub, metadata_GH1_sub, metadata_GH2_sub)
+
+# Create the violin plot
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nFeature_RNA, fill = batch)) +
+   geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("YRI" = "coral", "Human Panel" = "deepskyblue3")) +  
+  labs(x = "Timepoint", y = "nFeature_RNA") + theme_classic()
+
+
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = nFeature_RNA, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "nFeature_RNA") +
+  theme_classic()
+
+
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = nCount_RNA, fill = batch)) +
+   geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("YRI" = "coral", "Human Panel" = "deepskyblue3")) +  
+  labs(x = "Timepoint", y = "nCount_RNA") + theme_classic()
+
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = nCount_RNA, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "nCount_RNA") +
+  theme_classic()
+
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = percent.mt, fill = batch)) +
+   geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("YRI" = "coral", "Human Panel" = "deepskyblue3")) +  
+  labs(x = "Timepoint", y = "percent.mt") + theme_classic()
+
+ggplot(combined_data, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = percent.mt, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_violin(position = position_dodge(width = 0.9)) +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "percent.mt") +
+  theme_classic()
+
+condition_summary_EM <- data.frame(condition = names(table(metadata_EM_sub$condition)),
+                                count = as.vector(table(metadata_EM_sub$condition)))
+
+condition_summary_GH1<- data.frame(condition = names(table(metadata_GH1_sub$condition)),
+                                count = as.vector(table(metadata_GH1_sub$condition)))
+
+condition_summary_GH2<- data.frame(condition = names(table(metadata_GH2_sub$condition)),
+                                count = as.vector(table(metadata_GH2_sub$condition)))
+
+condition_summary_EM$batch <- "YRI"
+condition_summary_GH1$batch <- "Human Panel"
+condition_summary_GH2$batch <- "Human Panel"
+
+combined_summary <- rbind(condition_summary_EM, condition_summary_GH1, condition_summary_GH2)
+
+ggplot(combined_summary , aes(x = factor(condition, levels = c("D00", "D0", "D7m", "D7c", "D14m", "D14c")), y = count, fill = batch)) +
+    geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("YRI" = "coral", "Human Panel" = "deepskyblue3")) +  
+  labs(x = "Timepoint", y = "Count") + theme_classic()
+
+ggplot(combined_summary, aes(x = factor(condition, levels = c("D00", "D0", "D7c", "D14c", "D7m", "D14m")), 
+                          y = count, 
+                          fill = condition, 
+                          alpha = batch)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("D00" = rgb(186, 85, 211, maxColorValue=255), "D0" = rgb(218, 75, 180, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D7c" = rgb(253, 93, 93, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D14c"=rgb(254, 192, 0, maxColorValue = 255))) +
+  scale_alpha_manual(values = c("YRI" = 1, "Human Panel" = 0.3)) +
+  labs(x = "Timepoint", y = "count") +
+  theme_classic()
+
+
+
+```
+
+Integrating EM+GH+Wu data with colors. 
+```{r}
+load("/project2/gilad/emaan/time_project/data/seurat_QC_2024.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch1_QC.RData")
+load("/project2/gilad/emaan/time_project/data/GH_batch2_QC.RData")
+load("/project2/gilad/emaan/time_project/data/wu_combined_rev.RData")
+
+
+NA18856 <- subset(seurat_QC_2024, subset = donor_id == "NA18856")
+NA18855 <- subset(seurat_QC_2024, subset = donor_id == "NA18855")
+NA19160 <- subset(seurat_QC_2024, subset = donor_id == "NA19160")
+H1 <- subset(GH_batch1_QC, subset = donor_ID == "H1")
+H2 <- subset(GH_batch1_QC, subset = donor_ID == "H2")
+H3 <- subset(GH_batch2_QC, subset = donor_ID == "H3")
+H5 <- subset(GH_batch2_QC, subset = donor_ID == "H5")
+
+#Creating a list of the Seurat objects
+individual_list <- list(NA18856, NA18855, NA19160, H1,H2,H3,H5,wu_combined_rev)
+
+# normalize and identify variable features for each dataset independently
+individual_list <- lapply(X = individual_list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+#Select features that are repeatedly variable across data sets for integration
+features <- SelectIntegrationFeatures(object.list = individual_list)
+cell.anchors <- FindIntegrationAnchors(object.list = individual_list, anchor.features = features)
+
+#Creating the integrated data set
+cells.combined <- IntegrateData(anchorset = cell.anchors)
+DefaultAssay(cells.combined) <- "integrated"
+
+#Standard workflow for visualization and clustering 
+cells.combined <- ScaleData(cells.combined, verbose = FALSE)
+cells.combined <- RunPCA(cells.combined, npcs = 50, verbose = FALSE)
+
+save(cells.combined, file = "/project2/gilad/emaan/time_project/data/cells.combined_wu.RData")
+
+#Trying to find how many PCs to include
+ElbowPlot(cells.combined)
+DimHeatmap(cells.combined, dims = 1:50, cells = 500, balanced = TRUE)
+#Try 15, 20, and 50 PCs
+
+cells.combined <- RunUMAP(cells.combined, reduction = "pca", dims = 1:20)
+cells.combined <- FindNeighbors(cells.combined, reduction = "pca", dims = 1:20)
+cells.combined <- FindClusters(cells.combined, resolution = 0.5)
+
+# Visualization
+p1 <- DimPlot(cells.combined, reduction = "umap", group.by = "condition")
+
+p2 <- DimPlot(cells.combined, reduction = "umap", split.by = "condition")
+
+
+DimPlot(cells.combined, reduction = 'umap',
+  group.by = 'condition',
+  cols = c('D0'='purple3','D00'='plum3','D14c'='goldenrod2','D14m'='dodgerblue4','D7c'='darkorange2',
+    'D7m'='darkolivegreen4','Wu_chondrogenic_pellet_d14'='grey70','Wu_chondrogenic_pellet_d28'='grey30','Wu_chondrogenic_d42'='purple3','Wu_chondrogenic_d7'='khaki2'))
+
+
+DimPlot(object = integrate, reduction = 'umap', group.by = "condition",cols = c("D7c" = rgb(253, 93, 93, maxColorValue = 255), "D7m" = rgb(51, 153, 255, maxColorValue = 255), "D14m" = rgb(0, 102, 204, maxColorValue = 255), "D00" = rgb(186, 85, 211, maxColorValue=255), c("D0" = rgb(218, 75, 180, maxColorValue = 255),"Wu_chondrogenic_pellet_d7"=rgb(211,211,211, maxColorValue = 255), "Wu_chondrogenic_pellet_d14"=rgb(132,136,132, maxColorValue = 255), "Wu_chondrogenic_pellet_d28"=rgb(113,121,126, maxColorValue = 255), "Wu_chondrogenic_pellet_d42"=rgb(54,69,79, maxColorValue = 255) ,"D14c" = rgb(254, 192, 0, maxColorValue = 255))))
+```
+
+
+
+
+
+
+
+
+
+
+
+
